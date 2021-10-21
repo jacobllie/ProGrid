@@ -130,6 +130,7 @@ class film_calibration:
             plt.colorbar()
             plt.show()"""
 
+    print("\n Image acquisition complete")
 
     def color_channel_extraction(self, image, num_images, ROI_size, image_type):
 
@@ -152,17 +153,16 @@ class film_calibration:
 
         if self.calibration_mode:
             if self.image_registration:
-                BLUE_chan, GREEN_chan, RED_chan, GREY_chan = image_reg(BLUE_chan, RED_chan, GREEN_chan, GREY_chan, length)
-
+                BLUE_chan_reg, GREEN_chan_reg, RED_chan_reg, GREY_chan_reg = image_reg(BLUE_chan, RED_chan, GREEN_chan, GREY_chan, self.calibration_mode)
                 np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\BLUE_calib_{}".format(image_type), BLUE_chan)
                 np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREEN_calib_{}".format(image_type), GREEN_chan)
                 np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\RED_calib_{}".format(image_type), RED_chan)
                 np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREY_calib_{}".format(image_type), GREY_chan)
             else:
-                BLUE_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\BLUE_calib_{}.npy".format(image_type))
-                GREEN_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREEN_calib_{}.npy".format(image_type))
-                RED_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\RED_calib_{}.npy".format(image_type))
-                GREY_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREY_calib_{}.npy".format(image_type))
+                BLUE_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\BLUE_calib_{}.npy".format(image_type))
+                GREEN_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREEN_calib_{}.npy".format(image_type))
+                RED_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\RED_calib_{}.npy".format(image_type))
+                GREY_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREY_calib_{}.npy".format(image_type))
 
                 zero_PV = [25,26,27,28,29,30,31,42,43,44,45,48,55] #,25,28,31,43]
                 """
@@ -187,18 +187,20 @@ class film_calibration:
 
                     plt.show()"""
 
-
-            self.ROI_pixel_size = round(ROI_size/0.26)
+            """The images have resolution 300 dpi, which is 300 pixels/inch.
+            There is 25.4 mm in an inch. Therefore we have 300/25.4 = 11.81 pixels
+            per mm. To get 2mm in pixels. We therefore multiply it with 11.81"""
+            self.ROI_pixel_size = round(ROI_size*11.81)
         #Splitting each channel for calibration
-            BLUE_chan_ROI = BLUE_chan[:num_images, rows//2-self.ROI_pixel_size:rows//2+self.ROI_pixel_size, \
+            BLUE_chan_ROI = BLUE_chan_reg[:num_images, rows//2-self.ROI_pixel_size:rows//2+self.ROI_pixel_size, \
                                     columns//2 - self.ROI_pixel_size:columns//2 + self.ROI_pixel_size]
 
-            GREEN_chan_ROI = GREEN_chan[:num_images,rows//2-self.ROI_pixel_size:rows//2+self.ROI_pixel_size, \
+            GREEN_chan_ROI = GREEN_chan_reg[:num_images,rows//2-self.ROI_pixel_size:rows//2+self.ROI_pixel_size, \
                                     columns//2 - self.ROI_pixel_size:columns//2 + self.ROI_pixel_size]
-            RED_chan_ROI = RED_chan[:num_images,rows//2-self.ROI_pixel_size:rows//2+self.ROI_pixel_size, \
+            RED_chan_ROI = RED_chan_reg[:num_images,rows//2-self.ROI_pixel_size:rows//2+self.ROI_pixel_size, \
                                     columns//2 - self.ROI_pixel_size:columns//2 + self.ROI_pixel_size]
 
-            GREY_chan_ROI = GREY_chan[:num_images,rows//2-self.ROI_pixel_size:rows//2+self.ROI_pixel_size, \
+            GREY_chan_ROI = GREY_chan_reg[:num_images,rows//2-self.ROI_pixel_size:rows//2+self.ROI_pixel_size, \
                                     columns//2 - self.ROI_pixel_size:columns//2 + self.ROI_pixel_size]
             """
             zero_PV = [25,26,27,28,29,30,31,42,43,44,45,48,55] #,25,28,31,43]
@@ -223,18 +225,20 @@ class film_calibration:
                 ax4.imshow(GREY_chan_ROI[i])
 
                 plt.show()"""
+            print("\n color channel extraction for {} complete".format(image_type))
             return BLUE_chan_ROI, GREEN_chan_ROI, RED_chan_ROI, GREY_chan_ROI
 
         else:
             if self.image_registration:
+                x = 1
                 if self.open:
-                    BLUE_chan, GREEN_chan, RED_chan, GREY_chan = image_reg(BLUE_chan, RED_chan, GREEN_chan, GREY_chan)
+                    BLUE_chan_reg, GREEN_chan_reg, RED_chan_reg, GREY_chan_reg = image_reg(BLUE_chan, RED_chan, GREEN_chan, GREY_chan, self.calibration_mode)
                     np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\BLUE_open_{}".format(image_type), BLUE_chan)
                     np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREEN_open_{}".format(image_type), GREEN_chan)
                     np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\RED_open_{}".format(image_type), RED_chan)
                     np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREY_open_{}".format(image_type), GREY_chan)
                 elif self.grid:
-                    BLUE_chan, GREEN_chan, RED_chan, GREY_chan = image_reg(BLUE_chan, RED_chan, GREEN_chan, GREY_chan)
+                    BLUE_chan_reg, GREEN_chan_reg, RED_chan_reg, GREY_chan_reg = image_reg(BLUE_chan, RED_chan, GREEN_chan, GREY_chan, self.calibration_mode)
                     np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\BLUE_grid_{}".format(image_type), BLUE_chan)
                     np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREEN_grid_{}".format(image_type), GREEN_chan)
                     np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\RED_grid_{}".format(image_type), RED_chan)
@@ -242,15 +246,15 @@ class film_calibration:
 
             else:
                 if self.open:
-                    BLUE_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\BLUE_open_{}.npy".format(image_type))
-                    GREEN_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREEN_open_{}.npy".format(image_type))
-                    RED_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\RED_open_{}.npy".format(image_type))
-                    GREY_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREY_open_{}.npy".format(image_type))
+                    BLUE_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\BLUE_open_{}.npy".format(image_type))
+                    GREEN_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREEN_open_{}.npy".format(image_type))
+                    RED_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\RED_open_{}.npy".format(image_type))
+                    GREY_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREY_open_{}.npy".format(image_type))
                 elif self.grid:
-                    BLUE_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\BLUE_grid_{}.npy".format(image_type))
-                    GREEN_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREEN_grid_{}.npy".format(image_type))
-                    RED_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\RED_grid_{}.npy".format(image_type))
-                    GREY_chan = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREY_grid_{}.npy".format(image_type))
+                    BLUE_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\BLUE_grid_{}.npy".format(image_type))
+                    GREEN_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREEN_grid_{}.npy".format(image_type))
+                    RED_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\RED_grid_{}.npy".format(image_type))
+                    GREY_chan_reg = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images\\GREY_grid_{}.npy".format(image_type))
             """
             We want to change the shape of the measurement films, because of the
             hars edges, and the narrow end of the film, where intensity is
@@ -263,7 +267,10 @@ class film_calibration:
             For image classification, we only need to know if the film is
             high or low response, therefore we use peak values to decide.
             """
-            return RED_chan[:num_images, 75:450,150:300]
+            plt.imshow(RED_chan_reg[0,75:450,150:300])
+            plt.show()
+            print("\n color channel extraction and image registration complete")
+            return RED_chan_reg[:num_images, 75:450,150:300]
 
     def netOD_calculation(self, background_images,control_images,images, films_per_dose):
         #print(images.shape)
@@ -311,8 +318,6 @@ class film_calibration:
             for i in range(0,len(images)):
                 mean_img_PV = np.mean(images[i])
                 #sigma_img_PV[idx] = np.std(images[i])
-                print(mean_img_PV)
-
                 netOD[i] = max([0,np.log10((PV_cont-PV_bckg)/(mean_img_PV-PV_bckg))])
             return netOD
         else:
@@ -332,7 +337,7 @@ class film_calibration:
                 #all negative values are set to 0
                 img_OD = np.log10((PV_cont-PV_bckg)/(img_PV-PV_bckg)).clip(0)
                 netOD[i] = img_OD
-
+            print("\n netOD calculation is complete")
             return netOD
 
 
@@ -386,7 +391,7 @@ class film_calibration:
             self.netOD = self.netOD_calculation(RED_bckg, RED_cont, RED_chan_ROI, films_per_dose)
             return self.netOD
 
-    def netOD_split(self, doses, bandwidth, open = False, grid = False):
+    def netOD_split(self, doses, bandwidth):
         self.low_response_OD = []
         self.high_response_OD = []
         self.low_res_dose = []
@@ -430,6 +435,7 @@ class film_calibration:
             self.low_res_dose = self.low_res_dose[sort_idx_low]
             self.high_res_dose = self.high_res_dose[sort_idx_high]
 
+            print("\n netOD splitting is complete")
             return self.low_response_OD, self.high_response_OD, self.low_res_dose, self.high_res_dose
 
         else:
@@ -442,11 +448,10 @@ class film_calibration:
                 s = np.linspace(np.min(mean_netOD), np.max(mean_netOD),1000).reshape(-1,1)
                 kde_scores = kde.score_samples(s)
                 mi = argrelextrema(kde_scores, np.less)[0]
-                print(mi)
-            plt.plot(s,kde_scores)
-            plt.plot(s[mi[0]],kde_scores[mi[0]],"*")
+                plt.plot(s,kde_scores)
+                plt.plot(s[mi[0]],kde_scores[mi[0]],"*")
 
-            plt.show()
+                plt.close()
 
             low_img = np.argwhere(mean_netOD < s[mi[0]])[:,0]
             high_img = np.argwhere(mean_netOD > s[mi[0]])[:,0]
@@ -498,11 +503,14 @@ class film_calibration:
         high_popt, high_pcov = curve_fit(self.EBT_model, self.high_response_OD, self.high_res_dose)
 
         self.fitting_param_low = low_popt
+
+
         self.fitting_param_high = high_popt
 
 
         #print(np.sqrt(np.diag(pcov)))
 
+        print("\n fitting is complete")
         return self.fitting_param_low, self.fitting_param_high
 
 
