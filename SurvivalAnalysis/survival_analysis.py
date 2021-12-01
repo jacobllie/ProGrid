@@ -15,6 +15,7 @@ from pystackreg import StackReg
 
 
 
+
 class survival_analysis:
     """
     Folder is folder path for segmentation data.
@@ -64,7 +65,7 @@ class survival_analysis:
             self.ColonyData[date] = {}
             if self.mode == "Open":
                 for j,dose in enumerate(self.dose):
-                    files = np.asarray([file for file in os.listdir(os.path.join(folder,date,self.mode))\
+                    files = np.asarray([file for file in os.listdir(os.path.join(self.folder,date,self.mode))\
                                         if dose in file  and "ColonyData" in file])
                     for k, file in enumerate(files):
                         print(index,file)
@@ -78,9 +79,6 @@ class survival_analysis:
                 #print(os.listdir(os.path.join(self.folder,date,self.mode)))
                 files = np.asarray([file for file in os.listdir(os.path.join(self.folder,date,self.mode)) if "ColonyData" in file])
                 for j,file in enumerate(files):
-
-                    #print(index,file)
-                    #index += 1
                     self.ColonyData[date][self.position[j]] = pd.read_excel(os.path.join(self.folder, date, self.mode, file))
                     count_data[i,j] = self.ColonyData[date][self.position[j]].shape[0]
 
@@ -94,29 +92,24 @@ class survival_analysis:
         as ones, and none colony centroids as 0.
         """
 
-
-        self.colony_map = np.zeros((self.flask_template_shape[0], self.flask_template_shape[1]))
-        print(self.colony_map.shape)
+        if self.mode == "Control":
+            self.colony_map = np.zeros((len(self.time), len(self.position), self.flask_template_shape[0], self.flask_template_shape[1]))
+        if self.mode == "Open":
+            self.colony_map = np.zeros((len(self.time), len(self.dose), len(self.position),  self.flask_template_shape[0], self.flask_template_shape[1]))
         """
         Matrices are indexed (row,column) = (x,y).
         But in an image we have (y,x) because y represents the height of the image,
         while x represents the width of the image
         """
-        self.x_coor = np.array([int(i) for i in round(self.ColonyData["20112019"]["A"]["Centroid y-Coordinate (px)"])])
-        self.y_coor = np.array([int(i) for i in round(self.ColonyData["20112019"]["A"]["Centroid x-Coordinate (px)"])])
 
-        """if np.max(self.x_coor) > new_mask_shape[0]:
-            self.y_coor = np.delete(self.y_coor, np.argwhere(self.x_coor > new_mask_shape[0]))
-            self.x_coor = np.delete(self.x_coor, np.argwhere(self.x_coor > new_mask_shape[0]))
-        if np.max(self.y_coor) > new_mask_shape[1]:
-            self.x_coor = np.delete(self.x_coor, np.argwhere(self.y_coor > new_mask_shape[1]))
-            self.y_coor = np.delete(self.y_coor, np.argwhere(self.y_coor > new_mask_shape[1]))"""
+        for i, date in enumerate(self.time):
+            for j, pos in enumerate(self.position):
+                self.x_coor = np.array([int(k) for k in round(self.ColonyData[date][pos]["Centroid y-Coordinate (px)"])])
+                self.y_coor = np.array([int(k) for k in round(self.ColonyData[date][pos]["Centroid x-Coordinate (px)"])])
 
+                for l, x in enumerate(self.x_coor):
+                    self.colony_map[i,j,x,self.y_coor[l]] = 1
 
-        for i, x in enumerate(self.x_coor):
-            self.colony_map[x,self.y_coor[i]] = 1
-
-        print(self.colony_map.shape)
         pass
 
 
@@ -129,18 +122,7 @@ class survival_analysis:
         transformation matrix on the dose map. This way, we know exactly which dose
         each pixel in the cell flask received.
         """
-        plt.subplot(121)
-        plt.imshow(self.colony_map)
-
-        self.colony_map = tf.rescale(self.colony_map.astype(float), 1/4,order = 3, preserve_range = True, clip = False)
-        plt.subplot(122)
-        plt.imshow(self.colony_map)
-        plt.show()
-        colony_map_shape = self.colony_map.shape
         flask_image = self.flask_template.astype(float)
-
-        print("Colonymap shape after rescaling")
-        print(colony_map_shape)
 
 
         """
@@ -183,26 +165,57 @@ class survival_analysis:
 
         shape_diff = (flask_image.shape[0] - film_image.shape[0], flask_image.shape[1] - film_image.shape[1])
 
-        if shape_diff[0] % 2 != 0:
+        if shape_diff[0] % 2 != 0 and shape_diff[1] % 2 != 0:
+            film_image_pad = np.pad(film_image, ((shape_diff[0]//2 + 1, shape_diff[0]//2),(shape_diff[1]//2 + 1,shape_diff[1]//2)))
+            self.dose_map_pad = np.pad(mean_dose_map, ((shape_diff[0]//2 + 1, shape_diff[0]//2),(shape_diff[1]//2 + 1,shape_diff[1]//2)))
+
+        elif shape_diff[0] % 2 != 0:
             film_image_pad = np.pad(film_image, ((shape_diff[0]//2 + 1, shape_diff[0]//2),(shape_diff[1]//2,shape_diff[1]//2)))
             self.dose_map_pad = np.pad(mean_dose_map, ((shape_diff[0]//2 + 1, shape_diff[0]//2),(shape_diff[1]//2,shape_diff[1]//2)))
         elif shape_diff[1] % 2 != 0:
             film_image_pad = np.pad(film_image, ((shape_diff[0]//2, shape_diff[0]//2),(shape_diff[1]//2 + 1,shape_diff[1]//2)))
             self.dose_map_pad = np.pad(mean_dose_map, ((shape_diff[0]//2, shape_diff[0]//2),(shape_diff[1]//2 + 1,shape_diff[1]//2)))
 
-        elif shape_diff[0] % 2 != 0 and shape_diff[1] % 2 != 0:
-            film_image_pad = np.pad(film_image, ((shape_diff[0]//2 + 1, shape_diff[0]//2),(shape_diff[1]//2 + 1,shape_diff[1]//2)))
-            self.dose_map_pad = np.pad(mean_dose_map, ((shape_diff[0]//2 + 1, shape_diff[0]//2),(shape_diff[1]//2 + 1,shape_diff[1]//2)))
-
         else:
             film_image_pad = np.pad(film_image, ((shape_diff[0]//2, shape_diff[0]//2),(shape_diff[1]//2,shape_diff[1]//2)))
             self.dose_map_pad = np.pad(mean_dose_map, ((shape_diff[0]//2, shape_diff[0]//2),(shape_diff[1]//2,shape_diff[1]//2)))
 
+        import sys
+        np.set_printoptions(threshold=sys.maxsize)
+        print(self.dose_map_pad)
         #sr = StackReg(StackReg.RIGID_BODY)
         sr = StackReg(StackReg.SCALED_ROTATION)
+
         tmat = sr.register(film_image_pad, flask_image)
+        #testing the registration
         self.flask_image_reg = tf.warp(flask_image,tmat,order = 1)
-        #dose_map_reg = tf.warp(dose_map_pad, tmat, order = 1)
+
+
+        """
+        All EBT3 films have been registered to image 0. All cell flasks have
+        been registered to flask 0. Therefore, we only need to register our image 0 to
+        one of the flask templates, and use the transformation matrix on the other cell flasks.
+        """
+
+        self.colony_map_scaled = np.zeros((len(self.time), len(self.position), round(self.flask_template_shape[0]/4), round(self.flask_template_shape[1]/4)))
+        for i, date in enumerate(self.time):
+            for j, pos in enumerate(self.position):
+                #registering all colonymaps to EBT3 film 0.
+                self.colony_map_scaled[i,j] = tf.warp(tf.rescale(self.colony_map[i,j].astype(float), 1/4,order = 3, preserve_range = True, clip = False), tmat, order = 3)
+
+                """plt.subplot(121)
+                plt.title("Before registration")
+                plt.imshow(film_image_pad, cmap = "gray")
+                plt.imshow(self.colony_map_scaled[i,j], alpha = 0.8)
+                plt.imshow(flask_image, alpha = 0.6)
+                self.colony_map_scaled[i,j] = tf.warp(self.colony_map_scaled[i,j], tmat, order = 3)
+                plt.subplot(122)
+                plt.title("After registration")
+                plt.imshow(film_image_pad, cmap = "gray")
+                plt.imshow(self.colony_map_scaled[i,j], alpha = 0.8)
+                plt.imshow(self.flask_image_reg, alpha = 0.6)
+                plt.show()"""
+                colony_map_shape = self.colony_map_scaled.shape
 
         """
         plt.subplot(131)
@@ -231,33 +244,41 @@ class survival_analysis:
 
         """
 
-        new_mask_shape = (self.colony_map.shape[0]//self.kernel_size * self.kernel_size, self.colony_map.shape[1]//self.kernel_size * self.kernel_size)
+        """
+        Assume that colony_map_scaled, which has the same shape as the cell flask template
+        divided by 4, because of the difference in dpi, is larger than new mask shape.
+        Which is colony map scaled made divisible by 3.
+        """
+        new_mask_shape = (self.colony_map_scaled.shape[2]//self.kernel_size * self.kernel_size, self.colony_map_scaled.shape[3]//self.kernel_size * self.kernel_size)
+        shape_diff = (self.colony_map_scaled.shape[2] - new_mask_shape[0], self.colony_map_scaled.shape[3] - new_mask_shape[1])
 
-        shape_diff = (self.colony_map.shape[0] - new_mask_shape[0], self.colony_map.shape[1] - new_mask_shape[1])
 
 
-        if shape_diff[0] % 2 != 0:
-            self.colony_map = self.colony_map[shape_diff[0]//2 + 1: self.colony_map.shape[0] - shape_diff[0]//2, shape_diff[1]//2: self.colony_map.shape[1] - shape_diff[1]//2]
+        assert shape_diff[0] >= 0 and shape_diff[1] >= 0, "Shape difference between scaled colony map and new_mask_shape is negative"
+
+
+        if shape_diff[0] % 2 != 0 and shape_diff[1] % 2 != 0:
+            self.colony_map_scaled = self.colony_map_scaled[:,:,shape_diff[0]//2 + 1 : self.colony_map_scaled.shape[2] - shape_diff[0]//2, shape_diff[1]//2 + 1: self.colony_map_scaled.shape[3] - shape_diff[1]//2]
+
+        elif shape_diff[0] % 2 != 0:
+            self.colony_map_scaled = self.colony_map_scaled[:,:,shape_diff[0]//2 + 1: self.colony_map_scaled.shape[2] - shape_diff[0]//2, shape_diff[1]//2: self.colony_map_scaled.shape[3] - shape_diff[1]//2]
         elif shape_diff[1] % 2 != 0:
-            self.colony_map = self.colony_map[shape_diff[0]//2 : self.colony_map.shape[0] - shape_diff[0]//2, shape_diff[1]//2 + 1: self.colony_map.shape[1] - shape_diff[1]//2]
-
-        elif shape_diff[0] % 2 != 0 and shape_diff[1] % 2 != 0:
-            self.colony_map = self.colony_map[shape_diff[0]//2 + 1 : self.colony_map.shape[0] - shape_diff[0]//2, shape_diff[1]//2 + 1: self.colony_map.shape[1] - shape_diff[1]//2]
+            self.colony_map_scaled = self.colony_map_scaled[:,:,shape_diff[0]//2 : self.colony_map_scaled.shape[2] - shape_diff[0]//2, shape_diff[1]//2 + 1: self.colony_map_scaled.shape[3] - shape_diff[1]//2]
 
         else:
-            self.colony_map = self.colony_map[shape_diff[0]//2: self.colony_map.shape[0] - shape_diff[0]//2, shape_diff[1]//2: self.colony_map.shape[1] - shape_diff[1]//2]
+            self.colony_map_scaled = self.colony_map_scaled[:,:,shape_diff[0]//2: self.colony_map_scaled.shape[2] - shape_diff[0]//2, shape_diff[1]//2: self.colony_map_scaled.shape[3] - shape_diff[1]//2]
 
+        self.count_mat = np.zeros((len(self.time), len(self.position),self.colony_map_scaled.shape[2]//self.kernel_size , self.colony_map_scaled.shape[3]//self.kernel_size))
 
 
         pooling = nn.LPPool2d(1, kernel_size = self.kernel_size, stride = self.kernel_size) #p = 1 = norm_type
+        for i, date in enumerate(self.time):
+            for j, pos in enumerate(self.position):
+                #print(np.shape(torch.tensor(self.colony_map_scaled[i,j]).unsqueeze(0)[0]))
+                self.count_mat[i,j] = pooling(torch.tensor(self.colony_map_scaled[i,j]).unsqueeze(0))[0]
 
-        #print(np.shape(torch.tensor(colony_map)))
-        self.count_mat = pooling(torch.tensor(self.colony_map).unsqueeze(0))
-
-
-        plt.imshow(self.count_mat[0])
-        plt.show()
-
+                #plt.imshow(self.count_mat[i,j])
+                #plt.show()
         return self.count_mat
 
     def logistic(self):
@@ -301,11 +322,6 @@ if __name__ == "__main__":
     """
     survival_control = survival_analysis(folder, time, mode[0], template_file_control, dose = None)
     ColonyData_control, data_control = survival_control.data_acquisition()
-
-    x_coor =[int(i) for i in round(ColonyData_control["20112019"]["Centroid x-Coordinate (px)"])]
-    y_coor = [int(i) for i in round(ColonyData_control["20112019"]["Centroid y-Coordinate (px)"])]
-
-
 
     survival_open = survival_analysis(folder, time, mode[1], template_file_open, dose = dose)
     ColonyData_open, data_open  = survival_open.data_acquisition()
@@ -352,7 +368,7 @@ if __name__ == "__main__":
 
     fitting_param = fit(logLQ, doses, combined_count)
 
-    plt.style.use("seaborn")
+
     plt.xlabel("dose [Gy]")
     plt.ylabel(r"$SF_{log}$")
 
@@ -374,10 +390,6 @@ if __name__ == "__main__":
     #data_control = np.delete(data_control, [2,3], axis = 0)
     #t_test = ttest_ind(data_control[0], data_control[1])
     #print(t_test)
-
-
-
-
 
 
     """
