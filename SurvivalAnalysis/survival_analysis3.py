@@ -14,7 +14,7 @@ import skimage.transform as tf
 from pystackreg import StackReg
 from crop_pad import crop, pad
 import sys
-from plotting_functions_survival import survival_stripes_viz
+from plotting_functions_survival import survival_viz
 
 """
 todo: make cropping edges a variable
@@ -166,6 +166,8 @@ class survival_analysis:
             self.film_image_reg = tf.warp(film_image_pad,tmat,order = 3)
             self.dose_map_reg = tf.warp(dose_map_pad, tmat, order = 3)
 
+
+
             """
             All EBT3 films have been registered to image 0. All cell flasks have
             been registered to flask 0. Therefore, we only need to register our image 0 to
@@ -175,26 +177,41 @@ class survival_analysis:
             print("-----------------")
             print("Registration complete")
 
-            #plt.subplot(131)
-            #plt.imshow(self.flask_image)
-            #plt.subplot(132)
-            #plt.imshow(film_image_pad, cmap = "magma")
-            #plt.imshow(self.flask_image, alpha = 0.9)
-            #plt.subplot(133)
-            #plt.imshow(self.dose_map_reg, cmap = "magma")
-            #plt.imshow(self.film_image_reg, alpha = 0.8)
-            #plt.imshow(self.flask_image, alpha = 0.7)
+            plt.subplot(131)
+            plt.imshow(self.flask_image)
+            plt.subplot(132)
+            plt.imshow(film_image_pad, cmap = "magma")
+            plt.imshow(self.flask_image, alpha = 0.9)
+            plt.subplot(133)
+            plt.imshow(self.dose_map_reg, cmap = "magma")
+            plt.imshow(self.film_image_reg, alpha = 0.8)
+            plt.imshow(self.flask_image, alpha = 0.7)
 
-            #plt.close()
+            plt.close()
 
             return tmat
 
-        elif self.mode == "GRID Stripes":
-            seg_mask_5Gy = np.asarray(pd.read_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\18112019\\GRID Stripes\\A549-1811-05-gridS-A-SegMask.csv")).astype(float)
-            tmp_image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Measurements\\Grid_Stripes\\EBT3_Stripes_310821_Xray220kV_5Gy1_001.tif", -1)
+        elif "GRID" in self.mode.split(" "):
+            if self.mode == "GRID Stripes":
+                print("ssfdsfdbhfdbhsfdbh")
+                seg_mask = np.asarray(pd.read_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\18112019\\GRID Stripes\\A549-1811-05-gridS-A-SegMask.csv")).astype(float)
+                tmp_image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Measurements\\Grid_Stripes\\EBT3_Stripes_310821_Xray220kV_5Gy1_001.tif", -1)
+            elif self.mode == "GRID Dots":
+                seg_mask = np.asarray(pd.read_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\20112019\\GRID Dots\\A549-2011-10-gridC-A-SegMask.csv")).astype(float)
+                idx1 = seg_mask == 1
+                idx0 = seg_mask == 0
+                seg_mask[idx1] = 0
+                seg_mask[idx0] = 1
+                tmp_image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\Measurements\\EBT3_Holes_131021_Xray220kV_5Gy1_001.tif", -1)
 
-            #plt.imshow(seg_mask_5Gy[self.cropping_limits[0]:self.cropping_limits[1],self.cropping_limits[2]:self.cropping_limits[3]])
-            #plt.close()
+            """
+            All GRID Dots images are registered to the first image in the folder.
+            A mean dose map were created by converting optical density of the images to dose.
+            Then a mean dose map was created from all these images.
+            So when registering the dose map to cell segmentation mask, we dont need to register the dose map directly.
+            What we do is registering the first image in the GRID Dots folder to the segmentation
+            mask, and then use the transformation matrix tmat on the mean dose map.
+            """
 
             #edge is removed, because it affects the registration.
             tmp_image = tmp_image[10:722,10:497]
@@ -205,10 +222,23 @@ class survival_analysis:
             #Upscaling image to match cell flask of 1200 dpi
             film_image = tf.rescale(film_image, 4)
 
-            #converting the EBT3 image to a mask.
-            film_image[film_image >= 4e4] = 0
-            film_image[np.logical_and(0 < film_image, film_image < 2.8e4)] = 0
-            film_image[np.logical_and(2.8e4 < film_image, film_image < 4e4)] = 1
+            if self.mode == "GRID Stripes":
+                print("pray to God")
+                plt.subplot(121)
+                plt.imshow(film_image)
+                #converting the EBT3 image to a mask.
+                film_image[film_image >= 4e4] = 0
+                film_image[np.logical_and(0 < film_image, film_image < 2.8e4)] = 0
+                film_image[np.logical_and(2.8e4 < film_image, film_image < 4e4)] = 1
+                plt.subplot(122)
+                plt.imshow(film_image)
+                plt.close()
+
+            elif self.mode == "GRID Dots":
+                film_image[np.logical_and(0 < film_image, film_image < 2.5e4 )] = 1
+                film_image[film_image >= 2.5e4]  = 0
+
+
 
             #finding the difference in shape
             shape_diff = (self.flask_image.shape[0] - film_image.shape[0], self.flask_image.shape[1] - film_image.shape[1])
@@ -226,12 +256,16 @@ class survival_analysis:
 
             dose_map_scaled = tf.rescale(mean_dose_map, 4)
 
-            dose_map_pad = pad(dose_map_scaled, shape_diff)
+            self.dose_map_pad = pad(dose_map_scaled, shape_diff)
 
             sr = StackReg(StackReg.RIGID_BODY)
-            tmat = sr.register(seg_mask_5Gy, film_image_pad.astype(float))
+            tmat = sr.register(seg_mask, film_image_pad.astype(float))
             self.film_image_reg = tf.warp(film_image_pad,tmat,order = 3)
-            self.dose_map_reg = tf.warp(dose_map_pad,tmat,order = 3)
+            self.dose_map_reg = tf.warp(self.dose_map_pad,tmat,order = 3)
+
+            #Need this for further analysis
+            #np.savetxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_film_dose_map_reg.npy", self.dose_map_pad)
+
 
             """
             All EBT3 films have been registered to image 0. All cell flasks have
@@ -242,147 +276,19 @@ class survival_analysis:
             print("-----------------")
             print("Registration complete")
 
-            # plt.subplot(131)
-            # plt.imshow(film_image_pad)
-            # plt.subplot(132)
-            # plt.imshow(film_image_pad)
-            # plt.imshow(seg_mask_5Gy, alpha = 0.9)
-            # plt.subplot(133)
-            # plt.imshow(self.film_image_reg)
-            # #plt.imshow(transformed_image)
-            # plt.imshow(seg_mask_5Gy, alpha = 0.9)
-            # plt.close()
-
-        elif self.mode == "GRID Dots":
-            seg_mask_10Gy = np.asarray(pd.read_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\20112019\\GRID Dots\\A549-2011-10-gridC-A-SegMask.csv")).astype(float)
-
-            plt.subplot(121)
-            plt.imshow(seg_mask_10Gy)
-
-            idx1 = seg_mask_10Gy == 1
-            idx0 = seg_mask_10Gy == 0
-
-            seg_mask_10Gy[idx1] = 0
-            seg_mask_10Gy[idx0] = 1
-
-            plt.subplot(122)
-            plt.imshow(seg_mask_10Gy)
-            plt.show()
-            """
-            All GRID Dots images are registered to the first image in the folder.
-            A mean dose map were created by converting optical density of the images to dose.
-            Then a mean dose map was created from all these images.
-            So when registering the dose map to cell segmentation mask, we dont need to register the dose map directly.
-            What we do is registering the first image in the GRID Dots folder to the segmentation
-            mask, and then use the transformation matrix tmat on the mean dose map.
-            """
-            tmp_image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\Measurements\\EBT3_Holes_131021_Xray220kV_5Gy1_001.tif", -1)
-            #tmp_image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\Measurements\\EBT3_Holes_131021_Xray220kV_5Gy8_001.tif", -1)
-
-            tmp_tmp_image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\Measurements\\EBT3_Holes_131021_Xray220kV_5Gy1_001.tif",1)
-
-
-            print(seg_mask_10Gy.shape)
-
-            print("vfnjnjfnj")
-
-            plt.subplot(131)
-            plt.imshow(tmp_tmp_image)
-            plt.subplot(132)
-            plt.imshow(seg_mask_10Gy)
-
-            image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\Measurements\\EBT3_Holes_131021_Xray220kV_5Gy1_001.tif")
-            #image = cv2.imread('./asdf.jpg')
-
-
-            #edge is removed, because it affects the registration.
-            tmp_image = tmp_image[10:722,10:497]
-
-
-            #we use the gray channel of the images
-            film_image = 0.299*tmp_image[:,:,0] + 0.587*tmp_image[:,:,1] + 0.114*tmp_image[:,:,2]
-
-            plt.subplot(133)
-            plt.imshow(film_image)
-            plt.close()
-
-            #film_image = cv2.GaussianBlur(film_image, (3,3), 3)
-
-            #edges = cv2.Canny(image=img_blur, threshold1=100, threshold2=200) # Canny Edge Detection
-
-            # Display Canny Edge Detection Image
-
-            #cv2.imshow('Canny Edge Detection', edges)
-            #Upscaling image to match cell flask of 1200 dpi
-            film_image = tf.rescale(film_image, 4)
-
-            plt.subplot(121)
-            plt.imshow(film_image)
-            #converting the EBT3 image to a mask.
-            film_image[np.logical_and(0 < film_image, film_image < 2.5e4 )] = 1
-            film_image[film_image >= 2.5e4]  = 0
-            # film_image[np.logical_and(1.9e4 < film_image, film_image <= 2.3e4 )] = 0
-
-            # film_image[film_image >= 4e4] = 0
-            # film_image[np.logical_and(2 < film_image, film_image < 2.8e4)] = 0
-            # film_image[np.logical_and(2e5 < film_image, film_image < 3.8e4)] = 1
-
-            # film_image = cv2.Canny(film_image.astype(np.uint8),100,200)
-
-
-            plt.subplot(122)
-            plt.imshow(film_image)
-            plt.close()
-            #finding the difference in shape
-            #shape_diff = (self.flask_image.shape[0] - film_image.shape[0], self.flask_image.shape[1] - film_image.shape[1])
-            shape_diff = (seg_mask_10Gy.shape[0] - film_image.shape[0], seg_mask_10Gy.shape[1] - film_image.shape[1])
-            print(shape_diff)
-
-            #pad to achieve equal shapes
-            film_image_pad = pad(film_image, shape_diff)
-
-            print(film_image_pad.shape, seg_mask_10Gy.shape)
-
-            """
-            Now we load in mean dose map, which is a mean of 16 EBT3 films, which
-            all have been registered to EBT3_Open_310821_Xray220kV_5Gy1_001.tif.
-            So we can apply the registration matrix tmat, on the mean dose map.
-            """
-
-            mean_dose_map = np.loadtxt(self.dose_map_path)
-
-            dose_map_scaled = tf.rescale(mean_dose_map, 4)
-
-            dose_map_pad = pad(dose_map_scaled, shape_diff)
-
-            sr = StackReg(StackReg.RIGID_BODY)
-            #sr = StackReg(StackReg.SCALED_ROTATION)
-            tmat = sr.register(seg_mask_10Gy, film_image_pad.astype(float))
-            self.film_image_reg = tf.warp(film_image_pad,tmat,order = 3)
-            self.dose_map_reg = tf.warp(dose_map_pad,tmat,order = 3)
-
-            """
-            All EBT3 films have been registered to image 0. All cell flasks have
-            been registered to flask 0. Therefore, we only need to register our image 0 to
-            one of the flask templates, and use the transformation matrix on the other cell flasks.
-            """
-
-            print("-----------------")
-            print("Registration complete")
-
-
             plt.subplot(131)
             plt.imshow(film_image_pad, cmap = "hot")
             plt.subplot(132)
             plt.imshow(film_image_pad, cmap = "hot")
-            plt.imshow(seg_mask_10Gy, alpha = 0.9, cmap = "viridis")
+            plt.imshow(seg_mask, alpha = 0.9, cmap = "viridis")
             plt.subplot(133)
-            plt.imshow(self.film_image_reg,cmap = "hot")
-            plt.imshow(seg_mask_10Gy,alpha = 0.9, cmap = "viridis")
-
+            #plt.imshow(self.film_image_reg[225:2100,350:1950],cmap = "hot")
+            plt.imshow(self.dose_map_reg[225:2100,405:1950],cmap = "hot")
+            #plt.imshow(seg_mask,alpha = 0.9, cmap = "viridis")
 
             plt.close()
-            tmat = 1
+
+
             return tmat
 
 
@@ -403,14 +309,30 @@ class survival_analysis:
         most reliable
         """
         #self.colony_map = self.colony_map[:,:,:,200:2250,300:1750] #shape (2150,1450)
+
+        """
+        Making sure cropping_limits is divisible by kernel size, to fit all quadrats inside image
+        """
+
+        """correct_shape = [(self.cropping_limits[1]-self.cropping_limits[0])//self.kernel_size * self.kernel_size, (self.cropping_limits[3]-self.cropping_limits[2])//self.kernel_size*self.kernel_size]
+        shape_diff = ((self.cropping_limits[1]-self.cropping_limits[0]) - correct_shape[0], (self.cropping_limits[3]-self.cropping_limits[2])-correct_shape[1])
+        print(shape_diff)
+        print(correct_shape)
+        self.cropping_limits"""
+
+
         self.colony_map = self.colony_map[:,:,:,self.cropping_limits[0]:self.cropping_limits[1],self.cropping_limits[2]:self.cropping_limits[3]] #shape (2150,1450)
 
-        if self.mode == "GRID Stripes":
+        if self.mode == "GRID Stripes" or self.mode == "GRID Dots":
             """
             Visualisation
             """
             print(self.kernel_size)
-            #survival_stripes_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits)
+            survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = True)
+        elif self.mode == "GRID Dots":
+            x = 1
+            #survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = False)
+
         #the dose map need to match colony map
         new_mask_shape = (self.colony_map.shape[3]//self.kernel_size * self.kernel_size, self.colony_map.shape[4]//self.kernel_size * self.kernel_size)
         shape_diff = (self.colony_map.shape[3] - new_mask_shape[0], self.colony_map.shape[4] - new_mask_shape[1])
@@ -457,6 +379,7 @@ class survival_analysis:
             return self.count_mat, self.dose_map
         else:
             return self.count_mat
+
     def logistic(self, dose):
         """
         This function does average pooling using a 3x3 kernel with stride 3, to get
@@ -465,22 +388,23 @@ class survival_analysis:
         """
         #if a colony has been counted, set it to one.
         avg_pooling = nn.AvgPool2d(kernel_size = self.kernel_size, stride = self.kernel_size)
-        pooled_dose = avg_pooling(torch.tensor(self.dose_map).unsqueeze(0))[0]
+        self.pooled_dose = avg_pooling(torch.tensor(self.dose_map).unsqueeze(0))[0]
+
 
         if dose == 2:
-            dose_map = np.ravel(pooled_dose)*2/5
+            dose_map = np.ravel(self.pooled_dose)*2/5
             survival = np.reshape(self.count_mat[:,0,:], (self.count_mat.shape[0],
                                   self.count_mat.shape[2], self.count_mat.shape[3] * self.count_mat.shape[4]))
         elif dose == 5:
-            dose_map = np.ravel(pooled_dose)
+            dose_map = np.ravel(self.pooled_dose)
             survival = np.reshape(self.count_mat[:,1,:], (self.count_mat.shape[0],
                                   self.count_mat.shape[2], self.count_mat.shape[3] * self.count_mat.shape[4]))
         elif dose == 10:
-            dose_map = np.ravel(pooled_dose)*2
+            dose_map = np.ravel(self.pooled_dose)*2
             survival = np.reshape(self.count_mat[:,2,:], (self.count_mat.shape[0],
                                   self.count_mat.shape[2], self.count_mat.shape[3] * self.count_mat.shape[4]))
 
-        print(pooled_dose)
+        print(self.pooled_dose)
         """
         Out EBT3 films recieved nominal 5 Gy dose, we scaled them down to 2Gy
         for survival analysis of cell flasks receiving 2 Gy.
@@ -537,18 +461,22 @@ class survival_analysis:
     def SC(self, dose):
 
         avg_pooling = nn.AvgPool2d(kernel_size = self.kernel_size, stride = self.kernel_size)
-        pooled_dose = avg_pooling(torch.tensor(self.dose_map).unsqueeze(0))[0]
+        #need this for nearest peak function
+        self.pooled_dose = avg_pooling(torch.tensor(self.dose_map).unsqueeze(0))[0]
 
         if dose == 2:
-            dose_map = pooled_dose*2/5
+            pooled_dose_2 = avg_pooling(torch.tensor(self.dose_map*2/5).unsqueeze(0))[0]
+            dose_map = pooled_dose_2
             survival = np.reshape(self.count_mat[:,0,:], (self.count_mat.shape[0],
                                   self.count_mat.shape[2], self.count_mat.shape[3], self.count_mat.shape[4]))
         elif dose == 5:
-            dose_map = pooled_dose
+            pooled_dose_5 = avg_pooling(torch.tensor(self.dose_map).unsqueeze(0))[0]
+            dose_map = pooled_dose_5
             survival = np.reshape(self.count_mat[:,1,:], (self.count_mat.shape[0],
                                   self.count_mat.shape[2], self.count_mat.shape[3], self.count_mat.shape[4]))
         elif dose == 10:
-            dose_map = pooled_dose*2
+            pooled_dose_10 = avg_pooling(torch.tensor(self.dose_map*10/5).unsqueeze(0))[0]
+            dose_map = pooled_dose_10
             survival = np.reshape(self.count_mat[:,2,:], (self.count_mat.shape[0],
                                   self.count_mat.shape[2], self.count_mat.shape[3], self.count_mat.shape[4]))
 
@@ -557,7 +485,108 @@ class survival_analysis:
         return np.asarray(dose_map), survival
 
 
+    def nearest_peak(self):
+        dose_map = self.dose_map_pad[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]]
+        print(self.kernel_size)
+        print(dose_map.shape)
+        #plt.imshow(dose_map)
+        #plt.show()
 
+        x = np.arange(0,dose_map.shape[0],1)  #height in space
+        y = np.arange(0,dose_map.shape[1],1)  #width in space
+
+
+        fig,ax = plt.subplots()
+        ax.set_yticks(x[self.kernel_size::self.kernel_size])
+        # ax.set_yticklabels(["{:.3f}".format(y[i]/47) if i % 2 != 0 else "" for i in range(kernel_size,len(y),kernel_size)],fontsize = 6)
+        ax.set_yticklabels(["{:.1f}".format(x[i]) for i in range(self.kernel_size,len(x),self.kernel_size)],fontsize = 6)
+
+        ax.set_xticks(y[self.kernel_size::self.kernel_size])
+        ax.set_xticklabels(["{:.1f}".format(y[i]) for i in range(self.kernel_size,len(y),self.kernel_size)], fontsize = 6, rotation = 60)
+
+        ax.imshow(dose_map)
+        ax.grid(True)
+
+
+
+        """
+        Identifying peak and valley intensities
+        """
+        # valley_idx = np.argwhere(mean_dose_map > 2.6e4)
+        # peak_idx = np.argwhere(mean_dose_map < 2.6e4)
+
+        # d95 = np.amin(mean_dose_map)/0.95
+        # d95_idx = np.abs(mean_dose_map-d95).argmin()
+        """
+        Identifying dose that is 80 percent of maximum
+        """
+        d80 = np.max(dose_map)*0.8  #dividing by 0.8 because OD is opposite to dose
+        d80_idx  = np.abs(dose_map-d80).argmin()
+
+        d80 = dose_map[d80_idx//dose_map.shape[1], d80_idx%dose_map.shape[1]]
+        #d95 = mean_dose_map[d95_idx//mean_dose_map.shape[1], d95_idx%mean_dose_map.shape[1]]
+
+        """
+        Using contour lines to identify beginning and end of peak
+        """
+        print(len(x), len(y))
+
+        isodose = ax.contour(y, x, dose_map, levels = [d80], colors  = "blue") #y represents
+        #plt.show()
+
+        """
+        Getting index values from contour lines to find their position
+        """
+        lines = []
+        for line in isodose.collections[0].get_paths():
+            if line.vertices.shape[0] > 100: #less than hundred points is not a dose peak edge
+                lines.append(line.vertices) #vertices is (column,row)
+
+        dist = np.zeros(np.array(self.pooled_dose.shape))
+
+        print(dist.shape)
+
+
+
+        """
+        We jump from quadrat centre to quadrat centre to find the smallest distance to a peak
+        """
+        print(dose_map.shape)
+        odd_i = 1
+        for i in range(self.kernel_size//2, dose_map.shape[0] - self.kernel_size, self.kernel_size):  # minus kernel size to
+            print(i - self.kernel_size//2*odd_i)
+            #print(i - kernel_size//2*odd - rest)
+            odd_j = 1
+            for j in range(self.kernel_size//2,dose_map.shape[1] - self.kernel_size, self.kernel_size):  # - kernel size to get right amount of
+                #print(j - kernel_size//2*odd_j - rest_j)
+                min_d = 1e6                                 #not possible distance
+                centre = [i + self.kernel_size/2-self.kernel_size//2, j + self.kernel_size/2-self.kernel_size//2]
+                for line in lines:
+                    x = line[:,1] #as vertices is (column, row) we need to get index 1
+                    y = line[:,0]
+                    d = np.sqrt((x -centre[0])**2 + (y-centre[1])**2)
+                    tmp = np.min(d)
+                    #print(tmp)
+                    if tmp < min_d:
+                        min_d = tmp
+                #scatter for some reason wants the x and y axis values. Not x as rows
+                plt.scatter(j + self.kernel_size/2 - self.kernel_size//2, i + self.kernel_size/2-self.kernel_size//2 )
+                if dose_map[i,j] > 4: #assumes only 5 Gy irradiated films
+                    dist[i - self.kernel_size//2*odd_i,j - self.kernel_size//2*odd_j] = 0
+                else:
+                    dist[i - self.kernel_size//2*odd_i,j - self.kernel_size//2*odd_j] = min_d
+
+                odd_j += 2
+
+            odd_i += 2
+
+                # dx = np.subtract(lines, )
+
+
+        plt.show()
+
+
+        return dist
 
 
     #def Quadrat_anal(self, Colony_mask_shape, Colony_coor, kernel_size = 3):

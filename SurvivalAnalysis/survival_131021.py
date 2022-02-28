@@ -46,7 +46,16 @@ kernel_size = 3.9 #mm
 kernel_size = int(kernel_size*47) #pixels/mm
 #cropping_limits = [250,2200,300,1750]
 
-cropping_limits = [225,2200,300,1750]
+#cropping_limits = [225,2200,300,1750]
+
+
+# cropping_limits = [225,2200,350,1950]
+cropping_limits = [225,2100,350,1950]
+print(cropping_limits[1]-cropping_limits[0], cropping_limits[3] - cropping_limits[2])
+
+
+
+
 
 plt.style.use("seaborn")
 """
@@ -80,7 +89,25 @@ if grid == True:
     survival_grid.registration()
 
     _,dose_map = survival_grid.Quadrat()
-    #
-    # dose2Gy_grid, SC_grid_2Gy = survival_grid.SC(2)
-    # dose5Gy_grid, SC_grid_5Gy = survival_grid.SC(5)
-    # dose10Gy_grid, SC_grid_10Gy = survival_grid.SC(10)
+
+    dose2Gy_grid, SC_grid_2Gy = survival_grid.SC(2)
+    dose5Gy_grid, SC_grid_5Gy = survival_grid.SC(5)
+    dose10Gy_grid, SC_grid_10Gy = survival_grid.SC(10)
+
+tot_irradiatet_area = 24.505*100 #mm^2
+hole_diameter = 5 #mm
+peak_area = 7 * np.pi* (hole_diameter/2)**2 #7 grid holes with 5 mm diameter
+valley_area_ratio = (tot_irradiatet_area-peak_area)/tot_irradiatet_area
+peak_area_ratio = peak_area/tot_irradiatet_area
+
+SC, tot_dose_axis = data_stacking_2(True, SC_grid_2Gy,
+                                    SC_grid_5Gy, SC_grid_10Gy,
+                                    dose2Gy_grid, dose5Gy_grid, dose10Gy_grid)
+
+plt.plot(tot_dose_axis, SC,"*")
+plt.show()
+
+X_grid = design_matrix(len(SC),tot_dose_axis, 4, peak_area_ratio, valley_area_ratio)
+
+np.savetxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_X_w.g_factor.npy", X_grid)
+np.savetxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_SC_w.g_factor.npy", SC)
