@@ -65,20 +65,21 @@ def fit(model, x, y):
     popt, pcov = curve_fit(model, x, y)
     return popt
 
-def design_matrix(len_respond_variables, x1, num_regressors, x2 = None, x3 = None):
+def design_matrix(len_respond_variables, x1, num_regressors, x2 = None, x3 = None, x4 = None):
     X = np.zeros((len_respond_variables, num_regressors + 1))
     X[:,0] = 1
     X[:,1] = x1
     X[:,2] = x1**2
-    if num_regressors > 2:
+    if num_regressors == 4:
         X[:,3] = x2
         X[:,4] = x3
-
+    if num_regressors == 5:
+        X[:,5] = x4
     return X
 
 def mean_survival(X, SC):
 
-    dose_categories = np.unique(np.round(np.unique(X[:,1]),1))
+    dose_categories = np.unique(np.round(np.unique(X[:,1]),2))
     mean_SC = []
     for i in range(0,len(dose_categories)-1):
         idx = np.argwhere(np.logical_and(dose_categories[i] <= X[:,1], X[:,1] < dose_categories[i+1]))
@@ -107,12 +108,6 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
     #we interpolate the first parameter to fit a line to the poisson regression model
     #X[:,1] is doses
 
-    dose_interp = np.linspace(0,np.max(X[:,1]),10000)
-    if num_regressors > 2:
-        #we need to add the g factor to interpolated design matrix.
-        X_interp = design_matrix(len(dose_interp),dose_interp, num_regressors,np.repeat(X[-1,3],len(dose_interp)),np.repeat(X[-1,4],len(dose_interp)))
-    elif num_regressors == 2:
-        X_interp = design_matrix(len(dose_interp),dose_interp, num_regressors)
 
 
     #X_train, X_test, y_train, y_test = train_test_split(X, respond_variables,train_size = 0.8)
@@ -126,10 +121,16 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
 
     summary = poisson_training_results.summary()
 
+    print(summary)
+
     fitting_params = poisson_training_results.params
-    if num_regressors > 2:
+    if num_regressors == 5:
+        fit_label = r"Fit: $ {:.3f} {:+.3f}D {:+.3f} D^2 {:+.3f} g {:+.3f} (1-g) {:+.3f} l$".format(fitting_params[0], fitting_params[1],fitting_params[2], fitting_params[3],  fitting_params[4], fitting_params[5])
+    elif num_regressors == 4:
         fit_label = r"Fit: $ {:.3f} {:+.3f}D {:+.3f} D^2 {:+.3f} g {:+.3f} (1-g)$".format(fitting_params[0], fitting_params[1],fitting_params[2], fitting_params[3],  fitting_params[4])
-    else:
+    elif num_regressors == 3:
+        fit_label = r"Fit: $ {:.3f} {:+.3f}D {:+.3f} D^2 {:+.3f} l$".format(fitting_params[0], fitting_params[1],fitting_params[2], fitting_params[3])
+    elif num_regressors == 2:
         fit_label = r"Fit: $ {:+.3f} {:+.3f}D {:+.3f} D^2$".format(fitting_params[0], fitting_params[1],fitting_params[2])
 
     if save_results == True:
@@ -157,9 +158,9 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
     """
     predicted_counts = predictions_summary_frame['mean']
 
-    predicted_SC = mean_survival(X, predicted_counts)
+    mean_predicted_SC = mean_survival(X, predicted_counts)
     print("predicted average survival")
-    print(predicted_SC)
+    #print(predicted_SC)
     #we sort the doses to get correct axis
     #dose_axis, correct_counts = zip(*sorted(zip(X_test[:,0], y_test)))
     #_,predicted_counts = zip(*sorted(zip(X_test[:,0], predicted_counts)))
@@ -167,14 +168,14 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
 
     #print(np.shape(dose_axis), np.shape(correct_counts), np.shape(predicted_counts))
     dose_axis = X[:,1]
-    plt.plot(dose_axis, predicted_counts, 'bo', label=fit_label)
+    plt.plot(dose_axis, predicted_counts, "bo", label=fit_label)
     plt.plot(dose_axis, respond_variables, 'ro', label='Correct survival')
     plt.title(plot_title)
     plt.xlabel("Dose [Gy]")
     plt.ylabel("SC")
     plt.legend()
     #plt.show()
-    return poisson_training_results, predicted_SC
+    return poisson_training_results, mean_predicted_SC
 
 def data_stacking_2(grid, *args):
     """
