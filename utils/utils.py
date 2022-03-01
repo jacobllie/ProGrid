@@ -115,7 +115,7 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
     model = sm.GLM(respond_variables, X, family=sm.families.Poisson())
     poisson_training_results = model.fit()
 
-    print("big ass tiddies")
+   
 
     print(poisson_training_results.aic)
 
