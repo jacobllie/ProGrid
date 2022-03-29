@@ -5,7 +5,7 @@ import os
 from scipy.optimize import curve_fit
 from sklearn.neighbors import KernelDensity
 from scipy.signal import argrelextrema
-from parallelized_kde import parallelized_kde
+# from parallelized_kde import parallelized_kde
 import random
 from image_reg_split import image_reg
 
@@ -134,6 +134,7 @@ class film_calibration:
 
         for i,filename in enumerate(self.sorted_files):
             self.images[i] = cv2.imread(os.path.join(self.image_folder,filename), -1)
+            #print(self.images[i].shape)
         for i,filename in enumerate(background_files):
             self.background_img[i] = cv2.imread(os.path.join(self.background_folder,filename),-1)
         for i,filename in enumerate(first_control):
@@ -159,17 +160,14 @@ class film_calibration:
         BLUE_chan = image[:num_images,:,:,0]
         GREEN_chan = image[:num_images,:,:,1]
         RED_chan = image[:num_images,:,:,2]
-        GREY_chan = np.mean(image[:num_images], axis = 3)
+        GREY_chan = 0.299*RED_chan + 0.587*GREEN_chan + 0.114*BLUE_chan
+        #GREY_chan = np.mean(image[:num_images], axis = 3)
         rows = self.img_shape[0]
         columns = self.img_shape[1]
 
 
         if self.calibration_mode:
             if self.image_registration:
-                if image_type == "background":
-                    for i in range(GREY_chan.shape[0]):
-                        plt.imshow(GREY_chan[i])
-                        plt.show()
                 BLUE_chan_reg, GREEN_chan_reg, RED_chan_reg, GREY_chan_reg = image_reg(BLUE_chan, RED_chan, GREEN_chan, GREY_chan, self.calibration_mode)
                 np.save(self.reg_path + "\\BLUE_calib_{}".format(image_type), BLUE_chan)
                 np.save(self.reg_path + "\\GREEN_calib_{}".format(image_type), GREEN_chan)
@@ -254,9 +252,6 @@ class film_calibration:
                         GREEN_chan_reg = np.load(self.reg_path + "\\GREEN_calib_{}.npy".format(image_type))
                         RED_chan_reg =np.load(self.reg_path + "\\RED_calib_{}.npy".format(image_type))
                         GREY_chan_reg = np.load(self.reg_path + "\\GREY_calib_{}.npy".format(image_type))
-                        plt.title("Registered control or background image")
-                        plt.imshow(RED_chan_reg[1])
-                        plt.show()
 
 
             else:
@@ -277,6 +272,7 @@ class film_calibration:
                         GREEN_chan_reg = np.load(self.reg_path + "\\GREEN_grid_{}.npy".format(image_type))
                         RED_chan_reg = np.load(self.reg_path + "\\RED_grid_{}.npy".format(image_type))
                         GREY_chan_reg = np.load(self.reg_path + "\\GREY_grid_{}.npy".format(image_type))
+
                     else:
                         BLUE_chan_reg = np.load(self.reg_path + "\\BLUE_calib_{}.npy".format(image_type))
                         GREEN_chan_reg = np.load(self.reg_path + "\\GREEN_calib_{}.npy".format(image_type))
@@ -370,6 +366,9 @@ class film_calibration:
                 """
                 img_OD = np.clip(np.log10((PV_cont-PV_bckg)/(diff)),0,66e4)
                 netOD[i] = img_OD
+            print(netOD.shape)
+            # plt.imshow(netOD[0])
+            # plt.show()
             print("\n netOD calculation is complete")
             return netOD
 
@@ -419,6 +418,8 @@ class film_calibration:
         else:
 
             RED_chan_ROI = self.color_channel_extraction(self.images, self.num_films, ROI_size, image_types[2])
+            plt.imshow(RED_chan_ROI[0])
+            plt.close()
             RED_bckg = self.color_channel_extraction(self.background_img, self.num_background, ROI_size, image_types[0])
             RED_cont = self.color_channel_extraction(self.control_img, self.num_control, ROI_size, image_types[1])
             self.netOD = self.netOD_calculation(RED_bckg, RED_cont, RED_chan_ROI, films_per_dose)
