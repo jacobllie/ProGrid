@@ -14,6 +14,7 @@ import sys
 from plotting_functions_survival import pooled_colony_hist, survival_curve_grid, survival_curve_open, pred_vs_true_SC
 import cv2
 from playsound import playsound
+import pickle
 
 sound_path = "C:\\Users\\jacob\\OneDrive\\Documents\\livet\\veldig viktig\\"
 sounds = ["Ah Shit Here We Go Again - GTA Sound Effect (HD).mp3",
@@ -42,20 +43,23 @@ template_file_control =  "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\
 template_file_grid = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\20112019\\GRID Dots\\A549-2011-02-gridC-A-TemplateMask.csv"
 dose_path_grid = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\mean_film_dose_map\\mean_dose_grid.npy"
 position = ["A","B","C","D"]
-kernel_size = 3.9 #mm
-kernel_size = int(kernel_size*47) #pixels/mm
+# kernel_size = 3.9 #mm
+# kernel_size = int(kernel_size*47) #pixels/mm
 #cropping_limits = [250,2200,300,1750]
 
 #cropping_limits = [225,2200,300,1750]
 
 
 # cropping_limits = [225,2200,350,1950]
-cropping_limits = [225,2100,350,1950]
-print(cropping_limits[1]-cropping_limits[0], cropping_limits[3] - cropping_limits[2])
+cropping_limits = [210,2100,405,1900]
 
+num_regressors = 5
 
-
-
+kernel_size_mm = [0.5,1,2,3,4]
+kernel_size_p = [int(i*47) for i in kernel_size_mm]
+SC = {}
+X_grid = {}
+peak_dist = {}
 
 plt.style.use("seaborn")
 """
@@ -70,44 +74,61 @@ plt.close()
 Finding the number of counted colonies for control (0Gy) and open field
 experiments (2Gy and 5Gy)
 """
+for i in range(len(kernel_size_p)):
+    control  = True
+    if control == True:
+        survival_control = survival_analysis(folder, time, mode[0], position, kernel_size_p[i], dose_map_path = None, template_file = template_file_control, dose = ctrl_dose, cropping_limits = cropping_limits)
+        ColonyData_control, data_control = survival_control.data_acquisition()
+        survival_control.Colonymap()
+        pooled_SC_ctrl = survival_control.Quadrat()
+        pooled_SC_ctrl = np.reshape(pooled_SC_ctrl[:,0,:], (pooled_SC_ctrl.shape[0],
+                               pooled_SC_ctrl.shape[2], pooled_SC_ctrl.shape[3],pooled_SC_ctrl.shape[4]))
+        mean_SC_ctrl = np.mean(pooled_SC_ctrl)
 
-control  = False
-if control == True:
-    survival_control = survival_analysis(folder, time, mode[0], position, kernel_size, dose_map_path = None, template_file = template_file_control, dose = ctrl_dose, cropping_limits = cropping_limits)
-    ColonyData_control, data_control = survival_control.data_acquisition()
-    survival_control.Colonymap()
-    pooled_SC_ctrl = survival_control.Quadrat()
-    pooled_SC_ctrl = np.reshape(pooled_SC_ctrl[:,0,:], (pooled_SC_ctrl.shape[0],
-                           pooled_SC_ctrl.shape[2], pooled_SC_ctrl.shape[3],pooled_SC_ctrl.shape[4]))
-    mean_SC_ctrl = np.mean(pooled_SC_ctrl)
 
-grid = True
-if grid == True:
-    survival_grid = survival_analysis(folder, time, mode[1], position, kernel_size, dose_path_grid, template_file_grid, dose = dose, cropping_limits = cropping_limits)
-    ColonyData_grid, data_grid  = survival_grid.data_acquisition()
-    survival_grid.Colonymap()
-    survival_grid.registration()
 
-    _,dose_map = survival_grid.Quadrat()
+    grid = True
+    if grid == True:
+        survival_grid = survival_analysis(folder, time, mode[1], position, kernel_size_p[i], dose_path_grid, template_file_grid, dose = dose, cropping_limits = cropping_limits)
+        ColonyData_grid, data_grid  = survival_grid.data_acquisition()
+        survival_grid.Colonymap()
+        survival_grid.registration()
 
-    dose2Gy_grid, SC_grid_2Gy = survival_grid.SC(2)
-    dose5Gy_grid, SC_grid_5Gy = survival_grid.SC(5)
-    dose10Gy_grid, SC_grid_10Gy = survival_grid.SC(10)
+        _,dose_map = survival_grid.Quadrat("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\2D survival\\grid_survival5Gy_131021_dots_{}mm.png".format(kernel_size_mm[i]))
 
-tot_irradiatet_area = 24.505*100 #mm^2
-hole_diameter = 5 #mm
-peak_area = 7 * np.pi* (hole_diameter/2)**2 #7 grid holes with 5 mm diameter
-valley_area_ratio = (tot_irradiatet_area-peak_area)/tot_irradiatet_area
-peak_area_ratio = peak_area/tot_irradiatet_area
+        dose2Gy_grid, SC_grid_2Gy = survival_grid.SC(2)
+        dose5Gy_grid, SC_grid_5Gy = survival_grid.SC(5)
+        dose10Gy_grid, SC_grid_10Gy = survival_grid.SC(10)
 
-SC, tot_dose_axis = data_stacking_2(True, SC_grid_2Gy,
-                                    SC_grid_5Gy, SC_grid_10Gy,
-                                    dose2Gy_grid, dose5Gy_grid, dose10Gy_grid)
 
-plt.plot(tot_dose_axis, SC,"*")
-plt.show()
+        peak_dist = survival_grid.nearest_peak([225,2100,405,1900])/(47*10) #cm
 
-X_grid = design_matrix(len(SC),tot_dose_axis, 4, peak_area_ratio, valley_area_ratio)
+        """
+        All cell flask quadrat centers are assumed to have the same distance to nearest peak.
+        """
+        peak_dist = np.tile(np.ravel(peak_dist),len(dose)*pooled_SC_ctrl.shape[0]*pooled_SC_ctrl.shape[1])
 
-np.savetxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_X_w.g_factor.npy", X_grid)
-np.savetxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_SC_w.g_factor.npy", SC)
+
+
+    tot_irradiatet_area = 24.505*100 #mm^2
+    hole_diameter = 5 #mm
+    peak_area = 7 * np.pi* (hole_diameter/2)**2 #7 grid holes with 5 mm diameter
+    valley_area_ratio = (tot_irradiatet_area-peak_area)/tot_irradiatet_area
+    peak_area_ratio = peak_area/tot_irradiatet_area
+
+    SC[kernel_size_mm[i]], tot_dose_axis = data_stacking_2(True, SC_grid_2Gy,
+                                        SC_grid_5Gy, SC_grid_10Gy,
+                                        dose2Gy_grid, dose5Gy_grid, dose10Gy_grid)
+
+
+    # print((design_matrix(len(SC[i]),tot_dose_axis, 5, peak_area_ratio, valley_area_ratio)).shape)
+    X_grid[kernel_size_mm[i]] = design_matrix(len(SC[kernel_size_mm[i]]),tot_dose_axis, num_regressors,peak_area_ratio, valley_area_ratio, peak_dist)
+# Store data (serialize)
+with open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_X_{}regressors_distance.pickle".format(num_regressors), 'wb') as handle:
+    pickle.dump(X_grid, handle, protocol=pickle.HIGHEST_PROTOCOL)
+with open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_SC_{}regressors_distance.pickle".format(num_regressors), 'wb') as handle:
+    pickle.dump(SC, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+# np.savetxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_X_w.g_factor.npy", X_grid)
+# np.savetxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_SC_w.g_factor.npy", SC)

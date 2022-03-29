@@ -292,7 +292,7 @@ class survival_analysis:
             return tmat
 
 
-    def Quadrat(self):
+    def Quadrat(self, survival_viz_path = None):
         """
         Performing sum pooling, where a square of size n x m traverse the image
         and sums up number of colonies within the square. The original mask has size
@@ -323,16 +323,18 @@ class survival_analysis:
 
         self.colony_map = self.colony_map[:,:,:,self.cropping_limits[0]:self.cropping_limits[1],self.cropping_limits[2]:self.cropping_limits[3]] #shape (2150,1450)
 
-        if self.mode == "GRID Stripes" or self.mode == "GRID Dots":
+        if self.mode == "GRID Stripes":
             """
             Visualisation
             """
             print(self.kernel_size)
-            survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = True)
+            #survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = True)
+            #plt.savefig(survival_viz_path,dpi = 1200, pad_inches = 1)
+            plt.close()
         elif self.mode == "GRID Dots":
-            x = 1
             #survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = False)
-
+            #plt.savefig(survival_viz_path,dpi = 1200, pad_inches = 1)
+            plt.close()
         #the dose map need to match colony map
         new_mask_shape = (self.colony_map.shape[3]//self.kernel_size * self.kernel_size, self.colony_map.shape[4]//self.kernel_size * self.kernel_size)
         shape_diff = (self.colony_map.shape[3] - new_mask_shape[0], self.colony_map.shape[4] - new_mask_shape[1])
@@ -485,12 +487,26 @@ class survival_analysis:
         return np.asarray(dose_map), survival
 
 
-    def nearest_peak(self):
-        dose_map = self.dose_map_pad[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]]
+    def nearest_peak(self, cropping_limits):
+        """
+        This function finds the minimum distance from a quadrat center to a peak in pixels.
+        It needs an individual cropping limit because some peaks are outside the orignal cropping window.
+        I.e., some quadrats are far away from a peak within our cropping window, but if you zoom out a little,
+        you might find a peak that's very close to this quadrat.
+        """
+        #dose_map = self.dose_map_reg[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]]
+        #dose_map = self.dose_map_pad[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]]
+
+
+
+        dose_map = self.dose_map_reg[cropping_limits[0]:cropping_limits[1], cropping_limits[2]:cropping_limits[3]]
+
+
+        #plt.imshow(self.dose_map_reg, alpha = 0.8)
+
         print(self.kernel_size)
         print(dose_map.shape)
-        #plt.imshow(dose_map)
-        #plt.show()
+
 
         x = np.arange(0,dose_map.shape[0],1)  #height in space
         y = np.arange(0,dose_map.shape[1],1)  #width in space
@@ -505,7 +521,7 @@ class survival_analysis:
         ax.set_xticklabels(["{:.1f}".format(y[i]) for i in range(self.kernel_size,len(y),self.kernel_size)], fontsize = 6, rotation = 60)
 
         ax.imshow(dose_map)
-        ax.grid(True)
+        #ax.grid(True, color = "r")
 
 
 
@@ -520,10 +536,12 @@ class survival_analysis:
         """
         Identifying dose that is 80 percent of maximum
         """
-        d80 = np.max(dose_map)*0.8  #dividing by 0.8 because OD is opposite to dose
+        d80 = np.max(dose_map)*0.85  #dividing by 0.8 because OD is opposite to dose
         d80_idx  = np.abs(dose_map-d80).argmin()
 
         d80 = dose_map[d80_idx//dose_map.shape[1], d80_idx%dose_map.shape[1]]
+
+
         #d95 = mean_dose_map[d95_idx//mean_dose_map.shape[1], d95_idx%mean_dose_map.shape[1]]
 
         """
@@ -532,60 +550,90 @@ class survival_analysis:
         print(len(x), len(y))
 
         isodose = ax.contour(y, x, dose_map, levels = [d80], colors  = "blue") #y represents
-        #plt.show()
+
 
         """
         Getting index values from contour lines to find their position
         """
         lines = []
         for line in isodose.collections[0].get_paths():
-            if line.vertices.shape[0] > 100: #less than hundred points is not a dose peak edge
+            if line.vertices.shape[0] > 500: #less than hundred points is not a dose peak edge
                 lines.append(line.vertices) #vertices is (column,row)
 
         dist = np.zeros(np.array(self.pooled_dose.shape))
 
         print(dist.shape)
-
+        print(dose_map.shape)
 
 
         """
         We jump from quadrat centre to quadrat centre to find the smallest distance to a peak
         """
-        print(dose_map.shape)
         odd_i = 1
-        for i in range(self.kernel_size//2, dose_map.shape[0] - self.kernel_size, self.kernel_size):  # minus kernel size to
-            print(i - self.kernel_size//2*odd_i)
+        """
+        We do not go the full dimensions of the dose map, because it will surpass
+        the dimensions of our pooled dose map, which is based on different cropping limit.
+        """
+
+        """
+        For a reason I haven't figured out, the i - kernel_size//2 * odd_i doesnt
+        work for kernel_size%2 == 0, we therefore use
+        i//kernel_size instead
+        """
+
+        rest_i = 0
+        print(self.pooled_dose.shape[0]*self.kernel_size)
+        for i in range(self.kernel_size//2, self.pooled_dose.shape[0]*self.kernel_size , self.kernel_size):
+            if self.kernel_size%2 == 0:
+                print("whatup")
+                print((i//self.kernel_size))
+            else:
+                x = 1
+                print((i - self.kernel_size//2*odd_i)/self.pooled_dose.shape[0])
+
             #print(i - kernel_size//2*odd - rest)
             odd_j = 1
-            for j in range(self.kernel_size//2,dose_map.shape[1] - self.kernel_size, self.kernel_size):  # - kernel size to get right amount of
-                #print(j - kernel_size//2*odd_j - rest_j)
+            for j in range(self.kernel_size//2,self.pooled_dose.shape[1]*self.kernel_size, self.kernel_size):  # - kernel size to get right amount of
                 min_d = 1e6                                 #not possible distance
-                centre = [i + self.kernel_size/2-self.kernel_size//2, j + self.kernel_size/2-self.kernel_size//2]
+                centre = [i + self.kernel_size/2-self.kernel_size//2, j + self.kernel_size/2-self.kernel_size//2] # [x-axis, y-axis]
                 for line in lines:
                     x = line[:,1] #as vertices is (column, row) we need to get index 1
                     y = line[:,0]
                     d = np.sqrt((x -centre[0])**2 + (y-centre[1])**2)
+                    #plt.scatter(y,x)
                     tmp = np.min(d)
                     #print(tmp)
                     if tmp < min_d:
                         min_d = tmp
+                        min_d_idx = np.ravel([np.round(x[np.argwhere(d == min_d)]),y[np.argwhere(d == min_d)]])
+
+                plt.plot([centre[1], min_d_idx[1]],[centre[0],min_d_idx[0]])
                 #scatter for some reason wants the x and y axis values. Not x as rows
-                plt.scatter(j + self.kernel_size/2 - self.kernel_size//2, i + self.kernel_size/2-self.kernel_size//2 )
-                if dose_map[i,j] > 4: #assumes only 5 Gy irradiated films
-                    dist[i - self.kernel_size//2*odd_i,j - self.kernel_size//2*odd_j] = 0
+                plt.scatter(j + self.kernel_size/2 - self.kernel_size//2, i + self.kernel_size/2-self.kernel_size//2 ,s = 5)
+
+                if dose_map[i,j] > d80: #assumes only 5 Gy irradiated films
+                    if self.kernel_size%2 == 0:
+                        dist[i//self.kernel_size, j//self.kernel_size] = 0
+                    else:
+                        dist[i - self.kernel_size//2*odd_i,j - self.kernel_size//2*odd_j] = 0
                 else:
-                    dist[i - self.kernel_size//2*odd_i,j - self.kernel_size//2*odd_j] = min_d
+                    if self.kernel_size%2 == 0:
+                        dist[i//self.kernel_size, j//self.kernel_size] = min_d
+                    else:
+                        dist[i - self.kernel_size//2*odd_i,j - self.kernel_size//2*odd_j] = min_d
 
                 odd_j += 2
+
 
             odd_i += 2
 
                 # dx = np.subtract(lines, )
 
+        #plt.imshow(self.dose_map_reg[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]], alpha = 0.8, cmap = "hot")
 
-        plt.show()
-
-
+        plt.close()
+        if self.kernel_size == 188:
+            print(dist)
         return dist
 
 
