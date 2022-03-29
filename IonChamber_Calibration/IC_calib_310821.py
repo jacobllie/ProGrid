@@ -20,7 +20,14 @@ D = np.array([[[0.46,1.52,2.5,3.45] , [0.49,1.56,2.38,3.49] , [0.45,1.45,2.47,3.
             ,[[0.48,1.4,2.61,3.55] , [0.46,1.59,2.48,3.56] , [0.4,1.54,2.57,3.5]] \
             ,[[0.41,1.57,2.5,3.75],[0.37,1.51,2.6,3.55],[0.41,1.54,2.53,3.68]]]) * C
 
-print(np.ravel(D[0]))
+print(D.shape)
+mean_Mu = np.mean(D/C, axis = 1)
+dMu = np.std(mean_Mu, axis = 1)/np.sqrt(D.shape[0] * D.shape[1]) #4 positions 3 repetitions so std is divided with sqrt(12)
+
+print(mean_Mu)
+
+print(dMu.shape)
+print(dMu)
 
 pos_labels = ["A","B","C","D"]
 
