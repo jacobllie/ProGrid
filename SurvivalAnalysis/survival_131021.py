@@ -1,4 +1,4 @@
-from survival_analysis3 import survival_analysis
+from survival_analysis4 import survival_analysis
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -41,7 +41,9 @@ dose = ["02", "05", "10"]
 ctrl_dose = ["00"]
 template_file_control =  "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\20112019\\Control\\A549-2011-K1-TemplateMask.csv"
 template_file_grid = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\20112019\\GRID Dots\\A549-2011-02-gridC-A-TemplateMask.csv"
-dose_path_grid = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\mean_film_dose_map\\mean_dose_grid.npy"
+dose_path_grid = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\mean_film_dose_map\\mean_dose_grid_1D.npy"
+save_path = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\131021\\ColonyData"
+
 position = ["A","B","C","D"]
 # kernel_size = 3.9 #mm
 # kernel_size = int(kernel_size*47) #pixels/mm
@@ -51,11 +53,12 @@ position = ["A","B","C","D"]
 
 
 # cropping_limits = [225,2200,350,1950]
-cropping_limits = [210,2100,405,1900]
+#cropping_limits = [210,2100,405,1900]
 
+cropping_limits_2D = [100,2000,350,1850] #absolute max area
 num_regressors = 5
 
-kernel_size_mm = [0.5,1,2,3,4]
+kernel_size_mm = [3,1,2,0.5,4]
 kernel_size_p = [int(i*47) for i in kernel_size_mm]
 SC = {}
 X_grid = {}
@@ -74,28 +77,40 @@ plt.close()
 Finding the number of counted colonies for control (0Gy) and open field
 experiments (2Gy and 5Gy)
 """
-for i in range(len(kernel_size_p)):
-    control  = True
+#time, mode, position, kernel_size, dose_map_path, template_file, save_path, dose, cropping_limits, data_extract = True
+for i in range(1):
+    control  = False
     if control == True:
-        survival_control = survival_analysis(folder, time, mode[0], position, kernel_size_p[i], dose_map_path = None, template_file = template_file_control, dose = ctrl_dose, cropping_limits = cropping_limits)
+        survival_control = survival_analysis(folder, time, mode[0], position,
+                                             kernel_size_p[i], dose_map_path = None,
+                                             template_file = template_file_control,
+                                             save_path = save_path, dose = ctrl_dose,
+                                             cropping_limits = cropping_limits_2D,
+                                             data_extract = True)
         ColonyData_control, data_control = survival_control.data_acquisition()
         survival_control.Colonymap()
-        pooled_SC_ctrl = survival_control.Quadrat()
-        pooled_SC_ctrl = np.reshape(pooled_SC_ctrl[:,0,:], (pooled_SC_ctrl.shape[0],
-                               pooled_SC_ctrl.shape[2], pooled_SC_ctrl.shape[3],pooled_SC_ctrl.shape[4]))
-        mean_SC_ctrl = np.mean(pooled_SC_ctrl)
+        #pooled_SC_ctrl = survival_control.Quadrat()
+        #pooled_SC_ctrl = np.reshape(pooled_SC_ctrl[:,0,:], (pooled_SC_ctrl.shape[0],
+        #                       pooled_SC_ctrl.shape[2], pooled_SC_ctrl.shape[3],pooled_SC_ctrl.shape[4]))
+        #mean_SC_ctrl = np.mean(pooled_SC_ctrl)
 
 
 
     grid = True
     if grid == True:
-        survival_grid = survival_analysis(folder, time, mode[1], position, kernel_size_p[i], dose_path_grid, template_file_grid, dose = dose, cropping_limits = cropping_limits)
+        survival_grid = survival_analysis(folder, time, mode[1], position, kernel_size_p[i],
+                                          dose_path_grid, template_file_grid, save_path = save_path,
+                                          dose = dose, cropping_limits = cropping_limits_2D,
+                                          data_extract = True)
         ColonyData_grid, data_grid  = survival_grid.data_acquisition()
         survival_grid.Colonymap()
         survival_grid.registration()
 
+
+
         _,dose_map = survival_grid.Quadrat("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\2D survival\\grid_survival5Gy_131021_dots_{}mm.png".format(kernel_size_mm[i]))
 
+        sys.exit()
         dose2Gy_grid, SC_grid_2Gy = survival_grid.SC(2)
         dose5Gy_grid, SC_grid_5Gy = survival_grid.SC(5)
         dose10Gy_grid, SC_grid_10Gy = survival_grid.SC(10)
