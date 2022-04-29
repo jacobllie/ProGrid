@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from poisson import poisson
 from scipy.interpolate import interp1d
+from scipy.stats import poisson, gamma
 
 
 def survival_viz(colony_map, kernel_size, dose_map_reg, cropping_limits, Stripes):
@@ -170,6 +171,64 @@ def pooled_colony_hist(pooled_SC_ctrl, SC_grid_2Gy, SC_grid_5Gy, SC_grid_10Gy, k
     plt.show()
 
     pass
+
+def survival_histogram(dose_map, pooled_dose, pooled_survival, dose, kernel_size,mode = "GRID"):
+
+    if mode == "Control":
+        n, bins, patches = plt.hist(pooled_survival.ravel(), bins = len(np.unique(pooled_survival)), density = True,
+                                    facecolor='magenta', alpha = 0.8, edgecolor = "black")
+        plt.close()
+        return len(pooled_survival[pooled_survival < 0])
+    else:
+        d85 = np.max(dose_map)*0.70  #dividing by 0.8 because OD is opposite to dose
+        # d85_idx  = np.abs(dose_map-d85).argmin()
+        d15 = np.min(dose_map)*1.15
+
+        peak_dose = pooled_dose[pooled_dose > d85]
+        valley_dose = pooled_dose[pooled_dose < d15]
+        peak_survival =pooled_survival[:,:,pooled_dose > d85]
+        valley_survival = pooled_survival[:,:,pooled_dose < d15]
+
+        bins_peak = len(np.unique(peak_survival))
+        bins_valley = len(np.unique(valley_survival))
+
+        pois_peak = np.arange(np.min(peak_survival), np.max(peak_survival),1)
+        pois_valley = np.arange(np.min(valley_survival), np.max(valley_survival),1)
+
+        rel_diff_peak = np.abs(np.mean(peak_survival)-np.var(peak_survival))/np.mean(peak_survival)
+        rel_diff_valley = np.abs(np.mean(valley_survival)-np.var(valley_survival))/np.mean(valley_survival)
+
+        fig, ax = plt.subplots(nrows = 1, ncols = 2, figsize = (12,12))
+
+        ax[0].set_title(r"Peak Survival $\bar{x}$ = %.5f , s = %.5f , rel diff = %.5f" %(np.mean(peak_survival),
+                  np.var(peak_survival),np.abs(np.mean(peak_survival)-np.var(peak_survival))/np.mean(peak_survival)))
+        n, bins, patches = ax[0].hist(peak_survival.ravel(), bins = bins_peak, density = True,
+                                    facecolor='magenta', alpha = 0.8, edgecolor = "black")
+        ax[0].plot(pois_peak, poisson.pmf(pois_peak,np.mean(peak_survival)), label = "theoretical")
+        #plt.plot(pois_peak, gamma.pdf(pois_peak, np.mean(peak_survival))) #gamma distribution
+
+        ax[0].set_xlabel("# surviving colonies")
+        ax[0].set_ylabel("occurences of x surviving colonies")
+        ax[0].legend()
+
+
+        ax[1].set_title(r"Valley Survival $\bar{x}$ = %.5f , s = %.5f , rel diff = %.5f" %(np.mean(valley_survival),
+                  np.var(valley_survival), np.abs(np.mean(valley_survival)-np.var(valley_survival))/np.mean(valley_survival)))
+        n, bins, patches = ax[1].hist(valley_survival.ravel(), bins = bins_valley,
+                                    density = True,facecolor='cyan', alpha = 0.8,
+                                    edgecolor = "black")
+        ax[1].plot(pois_valley, poisson.pmf(pois_valley, np.mean(valley_survival)), label = "theoretical")
+        #plt.plot(pois_valley, gamma.pdf(pois_valley, np.mean(valley_survival))) #gamma distribution
+
+        ax[1].set_xlabel("# surviving colonies")
+        ax[1].set_ylabel("occurences of x surviving colonies")
+        ax[1].legend()
+        #fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\Poisson\\poisson_eval_histogram_{}_{}.png".format(kernel_size, dose), pad_inches = 0.5, dpi = 1200)
+        plt.close()
+
+
+    return [rel_diff_peak,rel_diff_valley]
+
 
 def survival_curve_open(nominal_dose, pooled_dose, pooled_survival, mean_ctrl_survival, plot_color):
     SF = np.zeros((pooled_survival.shape[0],pooled_survival.shape[1],len(np.ravel(pooled_dose))))
