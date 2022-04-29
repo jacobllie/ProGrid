@@ -10,6 +10,7 @@ import cv2
 from itertools import repeat
 from scipy import stats
 from scipy.optimize import minimize
+from scipy.stats import t
 
 
 def K_means(dose, n_clusters,x,y):
@@ -247,6 +248,47 @@ def data_stacking(dose0, dose2, dose5, survival_ctrl, survival_2,survival_5, dos
     """
     tot_dose_axis = np.ravel(np.repeat(doses, survival_ctrl.shape[0]*survival_ctrl.shape[1], axis = 0))
     return SC,tot_dose_axis
+
+def logLQ(params, d):
+    return (params[0]*d + params[1]*d**2)
+def LQres(params,d,y):
+    return (params[0]*d + params[1]*d**2) - y
+
+def D(params,netOD):
+    return params[0]*netOD + params[1]*netOD**params[2]
+
+def confidence_band(fit_obj, dfdp, n, x_interp,func):
+    k = len(dfdp)
+    df = n- k - 1 #degrees of freedom
+    hessian_approx_inv = np.linalg.inv(fit.jac.T.dot(fit.jac)) #follows H^-1 approx J^TJ
+    std_err_res = np.sqrt(np.sum(fit.fun**2)/df)**2
+    param_cov_low = std_err_res * hessian_approx_inv
+    cov_D = dfdp.T.dot(param_cov).dot(dfdp)
+    y_interp = func(fit.x,x_interp)
+
+def dose_profile1(pixel_height, dose_array):
+    mean_dose = np.zeros((len(dose_array),pixel_height))
+    std_dose = np.zeros((len(dose_array),pixel_height))
+    #confidence = np.zeros((len(dose_array), pixel_height))
+    for i in range(len(dose_array)):
+        mean_dose[i] = [np.mean(dose) for dose in dose_array[i]]
+        std_dose[i] = [np.std(dose) for dose in dose_array[i]]
+        #confidence[i] = std_dose[i]/np.sqrt(len(dose_array[i]))*t.ppf(0.95,len(dose_array[i]))
+        #print(dose_array.shape)
+
+    return mean_dose, std_dose
+def dose_profile2(pixel_height,dose_matrix):
+    """
+    Loops over the entire heigth of the image,
+    finding mean dose in each pixel row
+    """
+    dose_array = np.zeros(len(pixel_height))
+    print(len(dose_array))
+    for i in range(len(pixel_height)):
+        dose_array[i] = np.mean(dose_matrix[i])
+
+    return dose_array
+
 
 if __name__ == "__main__":
     import skimage.transform as tf
