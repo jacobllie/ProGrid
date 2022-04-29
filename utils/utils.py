@@ -9,6 +9,8 @@ from sklearn.model_selection import train_test_split
 import cv2
 from itertools import repeat
 from scipy import stats
+from scipy.optimize import minimize
+from scipy.stats import t
 
 
 def K_means(dose, n_clusters,x,y):
@@ -66,15 +68,20 @@ def fit(model, x, y):
     return popt
 
 def design_matrix(len_respond_variables, x1, num_regressors, x2 = None, x3 = None, x4 = None):
-    X = np.zeros((len_respond_variables, num_regressors + 1))
-    X[:,0] = 1
-    X[:,1] = x1
-    X[:,2] = x1**2
-    if num_regressors == 4:
-        X[:,3] = x2
-        X[:,4] = x3
-    if num_regressors == 5:
-        X[:,5] = x4
+    if num_regressors == 1:
+        X = np.zeros((len_respond_variables, num_regressors + 1))
+        X[:,0] = 1
+        X[:,1] = x1
+    else:
+        X = np.zeros((len_respond_variables, num_regressors + 1))
+        X[:,0] = 1
+        X[:,1] = x1
+        X[:,2] = x1**2
+        if num_regressors == 4:
+            X[:,3] = x2
+            X[:,4] = x3
+        if num_regressors == 5:
+            X[:,5] = x4
     return X
 
 def mean_survival(X, SC):
@@ -89,7 +96,7 @@ def mean_survival(X, SC):
              mean_SC.append(np.mean(SC[idx[:,0]]))
     return np.array(mean_SC)
 
-def poisson_regression(respond_variables, X , num_regressors, plot_title, save_path, save_results = False):
+def poisson_regression(respond_variables, X , num_regressors, plot_title, save_path, legend, SC_lengths, kernel_size, save_results = False):
     #making design matrix. The intercept is 1
     #the survival to ctrl
     """
@@ -115,13 +122,19 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
     model = sm.GLM(respond_variables, X, family=sm.families.Poisson())
     poisson_training_results = model.fit()
 
-   
 
-    print(poisson_training_results.aic)
+
+    poisson_training_results.aic
+
+    if save_results == True:
+        f = open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GLM_results_OPEN&GRID&STRIPES&DOTS_AIC.txt", "a")
+        f.write("\n{}b\t\t\t\t{}\t\t\t\t{:.5f}".format(num_regressors,    kernel_size, poisson_training_results.aic))
+        f.close()
 
     summary = poisson_training_results.summary()
+    summary2 = summary.as_csv()
 
-    print(summary)
+    print(summary2)
 
     fitting_params = poisson_training_results.params
     if num_regressors == 5:
@@ -165,17 +178,34 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
     #dose_axis, correct_counts = zip(*sorted(zip(X_test[:,0], y_test)))
     #_,predicted_counts = zip(*sorted(zip(X_test[:,0], predicted_counts)))
 
+    print(len(respond_variables))
 
-    #print(np.shape(dose_axis), np.shape(correct_counts), np.shape(predicted_counts))
+    print(np.sum(SC_lengths))
+
     dose_axis = X[:,1]
-    plt.plot(dose_axis, predicted_counts, "bo", label=fit_label)
-    plt.plot(dose_axis, respond_variables, 'ro', label='Correct survival')
     plt.title(plot_title)
     plt.xlabel("Dose [Gy]")
     plt.ylabel("SC")
+
+
+
+    for i in range(len(SC_lengths)-1):
+        print(SC_lengths[i], SC_lengths[i+1])
+        plt.plot(dose_axis[SC_lengths[i]:SC_lengths[i+1] - 1], predicted_counts[SC_lengths[i]:SC_lengths[i+1] - 1], "o", label = "Predicted" + legend[i])
+        plt.plot(dose_axis[SC_lengths[i]:SC_lengths[i+1] - 1], respond_variables[SC_lengths[i]:SC_lengths[i+1] - 1], 'o', label='Observed' + legend[i])
     plt.legend()
+
+
+
+    # dose_axis = X[:,1]
+    # plt.plot(dose_axis, predicted_counts, "bo", label=fit_label)
+    # plt.plot(dose_axis, respond_variables, 'ro', label='Correct survival')
+    # plt.title(plot_title)
+    # plt.xlabel("Dose [Gy]")
+    # plt.ylabel("SC")
+    # plt.legend()
     #plt.show()
-    return poisson_training_results, mean_predicted_SC
+    return poisson_training_results, mean_predicted_SC, summary2
 
 def data_stacking_2(grid, *args):
     """
@@ -218,6 +248,47 @@ def data_stacking(dose0, dose2, dose5, survival_ctrl, survival_2,survival_5, dos
     """
     tot_dose_axis = np.ravel(np.repeat(doses, survival_ctrl.shape[0]*survival_ctrl.shape[1], axis = 0))
     return SC,tot_dose_axis
+
+def logLQ(params, d):
+    return (params[0]*d + params[1]*d**2)
+def LQres(params,d,y):
+    return (params[0]*d + params[1]*d**2) - y
+
+def D(params,netOD):
+    return params[0]*netOD + params[1]*netOD**params[2]
+
+def confidence_band(fit_obj, dfdp, n, x_interp,func):
+    k = len(dfdp)
+    df = n- k - 1 #degrees of freedom
+    hessian_approx_inv = np.linalg.inv(fit.jac.T.dot(fit.jac)) #follows H^-1 approx J^TJ
+    std_err_res = np.sqrt(np.sum(fit.fun**2)/df)**2
+    param_cov_low = std_err_res * hessian_approx_inv
+    cov_D = dfdp.T.dot(param_cov).dot(dfdp)
+    y_interp = func(fit.x,x_interp)
+
+def dose_profile1(pixel_height, dose_array):
+    mean_dose = np.zeros((len(dose_array),pixel_height))
+    std_dose = np.zeros((len(dose_array),pixel_height))
+    #confidence = np.zeros((len(dose_array), pixel_height))
+    for i in range(len(dose_array)):
+        mean_dose[i] = [np.mean(dose) for dose in dose_array[i]]
+        std_dose[i] = [np.std(dose) for dose in dose_array[i]]
+        #confidence[i] = std_dose[i]/np.sqrt(len(dose_array[i]))*t.ppf(0.95,len(dose_array[i]))
+        #print(dose_array.shape)
+
+    return mean_dose, std_dose
+def dose_profile2(pixel_height,dose_matrix):
+    """
+    Loops over the entire heigth of the image,
+    finding mean dose in each pixel row
+    """
+    dose_array = np.zeros(len(pixel_height))
+    print(len(dose_array))
+    for i in range(len(pixel_height)):
+        dose_array[i] = np.mean(dose_matrix[i])
+
+    return dose_array
+
 
 if __name__ == "__main__":
     import skimage.transform as tf
