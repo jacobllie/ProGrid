@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from dose_profile import dose_profile, netOD_profile
 from dose_map_registration import phase_correlation#image_reg
-from utils import mean_dose, D
+from utils import mean_dose, D, dose_fit_error
 from scipy.stats import t
 import sys
 from matplotlib import rcParams
@@ -17,7 +17,8 @@ background_image = "EBT3_Calib_310821_Xray220kV_black1.tif"
 control_image = "EBT3_Calib_310821_Xray220kV_00Gy1_001.tif"
 reg_path = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\registered_images"
 # measurement_crop = [10,722,10,497]
-measurement_crop = [35,600,260,290] #best for now
+# measurement_crop = [35,600,260,290] #best for now
+measurement_crop = [35,600,100,400] #best for now
 
 
 """
@@ -51,13 +52,32 @@ ROI_size = 4 #mm
 
 #Finding netOD values
 netOD, sigma_img, sigma_bckg, sigma_ctrl, dOD = film_calib.calibrate(ROI_size, films_per_dose)
-np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\netOD_310821.npy", netOD)
+
+
+for i in range(netOD.shape[1]):
+    if i == 0:
+        plt.plot(dose_axis, netOD[2,:,i],"p",color = "red", label = "red channel")
+        plt.plot(dose_axis, netOD[0,:,i],"d",color = "blue", label = "blue channel ")
+        plt.plot(dose_axis, netOD[1,:,i],".",color = "green", label = "green channel ")
+        plt.plot(dose_axis, netOD[3,:,i],"*",color = "grey", label = "grey channel")
+    else:
+        plt.plot(dose_axis, netOD[2,:,i],"p",color = "red")
+        plt.plot(dose_axis, netOD[0,:,i],"d",color = "blue")
+        plt.plot(dose_axis, netOD[1,:,i],".",color = "green")
+        plt.plot(dose_axis, netOD[3,:,i],"*",color = "grey")
+plt.legend()
+plt.title("31.08.21")
+plt.xlabel("Dose [Gy]")
+plt.ylabel("netOD")
+# plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\netOD_plot_all_channels.png", bbox_inches = "tight", pad_inches = 0.2, dpi = 1200)
+plt.close()
+#np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\netOD_310821.npy", netOD)
 
 netOD_1310 = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\netOD_calib\\netOD_131021.npy")
 
 plt.style.use("seaborn")
 print(netOD.shape)
-color = ["b","g","r","grey","m","y","black","saddlebrown"]
+colors = ["b","g","r","grey","m","y","black","saddlebrown"]
 
 print((np.repeat(dose_axis,8)).shape, netOD[0,:].flatten().shape)
 
@@ -69,13 +89,14 @@ plt.xlabel("Dose [Gy]")
 plt.ylabel("netOD")
 
 plt.legend()
-plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\netOD_3108_1310_RED_split.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
+# plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\netOD_3108_1310_RED_split.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
 plt.show()
 
 channels = ["BLUE","GREEN","RED","GREY"]
-fig,ax = plt.subplots(2,2, sharex = True, sharey = True)
-ax = ax.flatten()
+fig,ax = plt.subplots(2,2, sharex = True, sharey = True, figsize= (10,10))
 
+ax = ax.flatten()
+plt.suptitle("netOD with 95% CI")
 
 """
 Find confidence band from error in netOD
@@ -87,10 +108,16 @@ for i in range(len(netOD)):
     if i == 0 or i == 2:
         ax[i].set_ylabel("netOD")
     for j in range(netOD.shape[1]):
-        ax[i].errorbar(x = np.arange(1,films_per_dose + 1,1), y = netOD[i,j], yerr = dOD[i,j], fmt =  "o", markersize = 5, c = color[j],label = "{} Gy".format(dose_axis[j]))
-        ax[i].fill_between(x = np.arange(1,films_per_dose + 1,1), y1 = netOD[i,j] - 1.67*dOD[i,j], y2 = netOD[i,j] + 1.67*dOD[i,j])
+        #ax[i].errorbar(x = np.arange(1,films_per_dose + 1,1), y = netOD[i,j], yerr = dOD[i,j], fmt =  "o", markersize = 5, c = color[j],label = "{} Gy".format(dose_axis[j]))
+        ax[i].plot(np.arange(1,films_per_dose + 1,1), netOD[i,j], "o-", c = colors[j],label = "{} Gy".format(dose_axis[j]))
+
+
+        ax[i].fill_between(x = np.arange(1,films_per_dose + 1,1), y1 = netOD[i,j] - t.ppf(0.95,dOD.shape[1] - 1)*dOD[i,j], y2 = netOD[i,j] + t.ppf(0.95, dOD.shape[1])*dOD[i,j], alpha = 0.7, color = colors[j])
+
     ax[i].legend()
+# fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\netOD_per_dose_per_channel.png",bbox_inches = "tight",pad_inches = 0.1, dpi = 1200)
 plt.show()
+
 
 """
 Plotting in the same plot, no subplots
@@ -103,7 +130,7 @@ Find confidence band from error in netOD
 
 for i in range(len(netOD)):
     for j in range(netOD.shape[1]):
-        ax.errorbar(np.repeat(dose_axis[j],8),netOD[i,j], yerr = dOD[i,j], fmt =  "o", markersize = 5, c = color[i])
+        ax.errorbar(np.repeat(dose_axis[j],8),netOD[i,j], yerr = dOD[i,j], fmt =  "o", markersize = 5, c = colors[i])
 plt.close()
 
 
@@ -136,9 +163,22 @@ bandwidh_grey_channel = np.array([0.0005, 0.003, 0.003,0.0005, 0.003, 0.003, 0.0
 Getting the fitting parameters a,b,n from scipy.optimize curve_fit that best fits
 the netOD data to the model: a*netOD + b * netOD**n
 """
-
+#getting low and high response indexes
+# low_response_OD, high_response_OD, low_res_dose, high_res_dose, bandwidth_blue_channel = film_calib.netOD_split(dose_axis, bandwidth_blue_channel, bandwidth_stepsize = 0.0001, channel = "BLUE")
+# low_response_OD, high_response_OD, low_res_dose, high_res_dose, bandwidth_blue_channel = film_calib.netOD_split(dose_axis, bandwidth_blue_channel, bandwidth_stepsize = 0.0001, channel = "GREEN")
 low_response_OD, high_response_OD, low_res_dose, high_res_dose, bandwidth_blue_channel = film_calib.netOD_split(dose_axis, bandwidth_blue_channel, bandwidth_stepsize = 0.0001, channel = "RED")
+# low_response_OD, high_response_OD, low_res_dose, high_res_dose, bandwidth_blue_channel = film_calib.netOD_split(dose_axis, bandwidth_blue_channel, bandwidth_stepsize = 0.0001, channel = "GREY")
+
+print(low_response_OD.shape)
+
+sys.exit()
+# channel = "BLUE"
+# channel = "GREEN"
+channel = "RED"
+# channel = "GREY"
 # low_response_OD, high_response_OD, low_res_dose, high_res_dose = film_calib.netOD_split(dose_axis, bandwidth_red_channel)
+
+
 
 print("low response OD")
 print(low_response_OD)
@@ -149,24 +189,35 @@ print("------------")
 print("1310")
 print(netOD_1310[2])
 
-np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\low_res_netOD_310821.npy", low_response_OD)
-np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\high_res_netOD_310821.npy", high_response_OD)
-
-np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\low_res_dose_310821.npy", low_res_dose)
-np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\high_res_dose_310821.npy", high_res_dose)
+# np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\low_res_netOD_310821.npy", low_response_OD)
+# np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\high_res_netOD_310821.npy", high_response_OD)
+#
+# np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\low_res_dose_310821.npy", low_res_dose)
+# np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\netOD_3108\\high_res_dose_310821.npy", high_res_dose)
 
 
 model_type = 1
 
+
+
 # fitting_param_low, fitting_param_high, residual_low, residual_high = film_calib.EBT_fit(dose_axis,num_fitting_params, model_type = 1)
 # fitting_param_low, fitting_param_high = film_calib.EBT_fit(dose_axis,num_fitting_params)#, model_type = 1)
-fitting_param_low, fitting_param_high, param_var_low, param_var_high, fit_low, fit_high = film_calib.EBT_fit(dose_axis,num_fitting_params, model_type)
+fitting_param_low, fitting_param_high, param_var_low, param_var_high, fit_low, fit_high = film_calib.EBT_fit(dose_axis,num_fitting_params, model_type = 1)
+
+
+
+"""f = open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Fitting results LM\\MSE_netODfit.txt", "a")
+f.write("\nMSE [low, high]\t\t\t\t channel\n")
+f.write("[{:.5f}, {:.5f}]\t\t\t{}".format(np.sum(fit_low.fun**2)/len(fit_low.fun), np.sum(fit_high.fun**2)/len(fit_high.fun), channel))
+f.close()"""
+
 
 print("fitting param low response       fitting param high response")
 print(fitting_param_low, fitting_param_high)
 
 print("paramer variance [a,b,c]")
 print(param_var_low, param_var_high)
+
 
 """
 print("RSS")
@@ -227,7 +278,7 @@ if confidence:
 
 
 plt.style.use("seaborn")
-plt.title("Calibration curve for EBT3 films using BLUE color channel")
+plt.title("Calibration curve for EBT3 films using {} color channel".format(channel))
 plt.xlabel("dose [Gy]")
 plt.ylabel("netOD")
 
@@ -235,13 +286,26 @@ plt.ylabel("netOD")
 Maybe its best to drop confidence intervals here
 """
 
+if channel == "BLUE":
+    color1 = "blue"
+    color2 = "navy"
+
+elif channel == "GREEN":
+    color1 = "green"
+    color2 = "lime"
+elif channel == "RED":
+    color1 = "red"
+    color2 = "pink"
+elif channel == "GREY":
+    color1 = "dimgrey"
+    color2 = "darkgrey"
 #looping over all the 8 films, and plotting their netOD
 plt.plot(film_calib.EBT_model(np.linspace(0,max(low_response_OD),1000), fitting_param_low,model_type), np.linspace(0,max(low_response_OD),1000), "--",
-        color = "red", label = r"Low response fit  $%.3f \cdot netOD + %.3f \cdot netOD^{%.3f}$"%(fitting_param_low[0],
+        color = color1, label = r"Low response fit  $%.3f \cdot netOD + %.3f \cdot netOD^{%.3f}$"%(fitting_param_low[0],
         fitting_param_low[1],fitting_param_low[2]))
 #plt.fill_betweenx(low_response_OD_interp, D_interp_low - t_crit_low *  np.sqrt(np.diag(cov_D_low)), D_interp_low + t_crit_low * np.sqrt(np.diag(cov_D_low)))
 plt.plot(film_calib.EBT_model(np.linspace(0,max(high_response_OD),1000), fitting_param_high,model_type), np.linspace(0,max(high_response_OD),1000), "--",
-         color = "pink", label = r"High response fit $%.3f \cdot netOD + %.3f \cdot netOD^{%.3f}$"%(fitting_param_high[0],
+         color = color2, label = r"High response fit $%.3f \cdot netOD + %.3f \cdot netOD^{%.3f}$"%(fitting_param_high[0],
          fitting_param_high[1],fitting_param_high[2]))
 #plt.fill_betweenx(high_response_OD_interp, D_interp_high - t_crit_high *  np.sqrt(np.diag(cov_D_high)), D_interp_high + t_crit_high * np.sqrt(np.diag(cov_D_high)))
 """plt.plot(film_calib.EBT_model(np.linspace(0,max(low_response_OD),1000), fitting_param_low[0],
@@ -253,31 +317,32 @@ plt.plot(film_calib.EBT_model(np.linspace(0,max(high_response_OD),1000), fitting
          color = "pink", label = r"High response fit $%.3f \cdot netOD + %.3f \cdot netOD^{%.3f}$"%(fitting_param_high[0],
          fitting_param_high[1],fitting_param_high[2]))"""
 
-plt.plot(low_res_dose,low_response_OD,"p",color = "red")
-plt.plot(high_res_dose, high_response_OD, "d",color = "pink")
+plt.plot(low_res_dose,low_response_OD,"p",color = color1)
+plt.plot(high_res_dose, high_response_OD, "d",color = color2)
 
 
 for i in range(len(low_response_OD)):
     if i == 0:
-        plt.plot(low_res_dose, low_response_OD, "p", color = "red", label = "low response netOD")
-        #plt.plot(dose_axis, netOD[2,:,i],"p",color = "red", label = "red channel low response")
-        #plt.plot(dose_axis, netOD[0,:,i],"d",color = "blue", label = "blue channel netOD")
-        #plt.plot(dose_axis, netOD[1,:,i],".",color = "green", label = "green channel netOD")
-        #plt.plot(dose_axis, netOD[3,:,i],"*",color = "grey", label = "grey channel netOD")
+        plt.plot(low_res_dose, low_response_OD, "p", color = color1, label = "low response netOD")
+        # plt.plot(dose_axis, netOD[2,:,i],"p",color = "red", label = "red channel low response")
+        # plt.plot(dose_axis, netOD[0,:,i],"d",color = "blue", label = "blue channel netOD")
+        # plt.plot(dose_axis, netOD[1,:,i],".",color = "green", label = "green channel netOD")
+        # plt.plot(dose_axis, netOD[3,:,i],"*",color = "grey", label = "grey channel netOD")
     else:
-        plt.plot(low_res_dose, low_response_OD, "p", color = "red")
-        #plt.plot(dose_axis, netOD[2,:,i],"p",color = "red")
-        #plt.plot(dose_axis, netOD[0,:,i],"d",color = "blue")
-        #plt.plot(dose_axis, netOD[1,:,i],".",color = "green")
-        #plt.plot(dose_axis, netOD[3,:,i],"*",color = "grey")
+        plt.plot(low_res_dose, low_response_OD, "p", color = color1)
+        # plt.plot(dose_axis, netOD[2,:,i],"p",color = "red")
+        # plt.plot(dose_axis, netOD[0,:,i],"d",color = "blue")
+        # plt.plot(dose_axis, netOD[1,:,i],".",color = "green")
+        # plt.plot(dose_axis, netOD[3,:,i],"*",color = "grey")
 
 for i in range(len(high_response_OD)):
     if i == 0:
-        plt.plot(high_res_dose, high_response_OD, "p", color = "blue", label = "high response netOD")
+        plt.plot(high_res_dose, high_response_OD, "p", color = color2, label = "high response netOD")
     else:
-        plt.plot(high_res_dose, high_response_OD, "p", color = "blue")
+        plt.plot(high_res_dose, high_response_OD, "p", color = color2)
 
 plt.legend()
+# plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\{}_fit.png".format(channel), bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
 plt.show()
 
 
@@ -286,11 +351,6 @@ plt.show()
 Now we gather the measurement films and see which dose the have based on
 their netOD. Both for open field and grid
 """
-
-"""
-It works to here, now we need to fix measurement films because film calibration has been changed alot to return dOD
-"""
-
 
 test_image_open = "EBT3_Open_310821_Xray220kV_5Gy1_001.tif"
 test_image_grid = "EBT3_Stripes_310821_Xray220kV_5Gy1_003.tif"
@@ -315,9 +375,8 @@ Don't know how to handle uncertainty in netOD measurement films. Because you don
 but simply convert all pixels to netOD, so what is the uncertainty in PV_img ??
 """
 
-netOD_open,_,_,_,_ = film_measurements_open.calibrate(ROI_size, films_per_dose)
-netOD_grid,_,_,_,_ = film_measurements_grid.calibrate(ROI_size, films_per_dose)
-
+netOD_open,_,_,_,dOD_open = film_measurements_open.calibrate(ROI_size, films_per_dose)
+netOD_grid,_,_,_,dOD_grid = film_measurements_grid.calibrate(ROI_size, films_per_dose)
 
 image_height = np.arange(0,netOD_open.shape[0],1) #pixels
 
@@ -347,24 +406,79 @@ low_img_open, high_img_open = film_measurements_open.netOD_split(dose_axis, band
 low_img_grid, high_img_grid = film_measurements_grid.netOD_split(dose_axis, bandwidth_grid, bandwidth_stepsize = 0.0001)
 
 
+
+#standard deviation of low and high response OD
+dOD_low_open = dOD_open[low_img_open]
+dOD_high_open = dOD_open[high_img_open]
+
+dOD_low_grid = dOD_grid[low_img_grid]
+dOD_high_grid = dOD_grid[high_img_grid]
+
+
+
 low_res_dose_open = film_measurements_open.EBT_model(netOD_open[low_img_open],fitting_param_low, model_type)
 # low_res_dose_open = film_measurements_open.EBT_model(netOD_open[low_img_open],fitting_param_low[0],fitting_param_low[1],fitting_param_low[2])
 high_res_dose_open =  film_measurements_open.EBT_model(netOD_open[high_img_open],fitting_param_high, model_type)
 # high_res_dose_open =  film_measurements_open.EBT_model(netOD_open[high_img_open],fitting_param_high[0],fitting_param_high[1],fitting_param_high[2])
 
+dose_map_open = np.concatenate((low_res_dose_open, high_res_dose_open))
 
-print(np.concatenate((low_res_dose_open, high_res_dose_open)).shape)
+
+print(dose_map_open.shape)
+
+print(np.mean(np.abs(np.mean(dose_map_open) - 5)/5))
+
+"""
+f = open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\ROI evaluation\\mean_rel_err_open_dose_variable_ROI_2.txt", "a")
+f.write("\nMean Relative error from an analysis area of {}, with ROI {} ROI\n".format(measurement_crop, ROI_size))
+f.write("REL ERR\n")
+f.write("{:.5f}\n".format(np.mean(np.abs(np.mean(dose_map_open) - 5)/5)))
+f.close()"""
 
 
-mean_dose_open = np.mean(np.concatenate((low_res_dose_open, high_res_dose_open)), axis = 0)
+#measurement_crop = [35,600,260,290] #best for now
+
+
+
 
 #this is used in colony survival
 # np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_dose_open_test.npy", mean_dose_open)
 
+"""
+All the values we need for error in dose
+"""
+#fitting_param_low, fitting_param_high, param_var_low, param_var_high, fit_low, fit_high
+#low_response_OD, high_response_OD
+#dose_fit_error(OD, dOD,dparam,param)
+
+# std_err_dose = np.std(dose_map_open,axis = 0)/np.sqrt(len(dose_map_open))
+
 
 """
-Get uncertainty here
+Using error propagation
 """
+
+# std_fit = np.sqrt((dose_fit_error(netOD_open[low_img_open], dOD_low, param_var_low, fitting_param_low))**2/len(low_img_open) + \
+#                   (dose_fit_error(netOD_open[high_img_open], dOD_high, param_var_high, fitting_param_high))**2/len(high_img_open))
+std_fit_open_low = np.sqrt(np.sum(dose_fit_error(netOD_open[low_img_open], dOD_low_open, param_var_low, fitting_param_low)**2,axis = 0))/len(low_img_open)
+std_fit_open_high = np.sqrt(np.sum(dose_fit_error(netOD_open[high_img_open], dOD_high_open, param_var_high, fitting_param_high)**2,axis = 0))/len(high_img_open)
+
+#should we divide with 2 ?
+mean_dose_map_error_open = np.sqrt(std_fit_open_low**2 + std_fit_open_high**2)
+
+# std_err_fit = np.sum(std_fit,axis = 0)/np.sqrt(len(dose_map_open))
+# mean_dose_map_error = std_err_fit
+
+stderr_open_profile = np.sqrt(np.sum(mean_dose_map_error_open**2, axis = 1))/mean_dose_map_error_open.shape[1]
+conf_open = t.ppf(0.95, len(low_img_open) + len(high_img_open) - 2) * stderr_open_profile
+
+"""
+print("mean dose open field 5 Gy")
+print(np.mean(dose_map_open))
+print("mean standard error")
+print(np.mean(mean_dose_map_error))"""
+
+
 #print(mean_dose_open)
 #np.savetxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_dose_open.npy", mean_dose_open)
 #mean_dosemap_open = np.
@@ -375,12 +489,33 @@ high_res_dose_grid =  film_measurements_grid.EBT_model(netOD_grid[high_img_grid]
 
 mean_dose_grid = np.mean(np.concatenate((low_res_dose_grid, high_res_dose_grid)), axis = 0)
 
-print(mean_dose_grid.shape)
+#finding mean standard error of all films
+std_fit_grid_low = np.sqrt(np.sum(dose_fit_error(netOD_grid[low_img_grid], dOD_low_grid, param_var_low, fitting_param_low)**2,axis = 0))/len(low_img_grid)
+std_fit_grid_high = np.sqrt(np.sum(dose_fit_error(netOD_grid[high_img_grid], dOD_high_grid, param_var_high, fitting_param_high)**2,axis = 0))/len(high_img_grid)
 
 
-plt.imshow(mean_dose_grid)
-plt.show()
+print(std_fit_grid_low.shape)
+#finding pooled standard error of combination
 
+# mean_dose_map_error_grid = np.sqrt((std_fit_grid_low**2*(len(low_img_grid) - 2) + std_fit_grid_high**2*(len(high_img_grid) - 2))/(len(low_img_grid) + len(high_img_grid) - 2))
+#mean_dose_map_error_grid = np.sqrt(std_fit_grid_low**2 + std_fit_grid_high**2)/2
+mean_dose_map_error_grid = np.sqrt(std_fit_grid_low**2 + std_fit_grid_high**2)
+
+stderr_grid_profile = np.sqrt(np.sum(mean_dose_map_error_grid**2, axis = 1))/mean_dose_map_error_grid.shape[1] #finding mean std error of each row
+
+conf_grid = t.ppf(0.95, len(low_img_grid) + len(high_img_grid) - 2) * stderr_grid_profile
+
+"""
+Using std of low and high films to find confidence
+"""
+"""
+std_open = np.sum(np.var(low_res_dose_open, axis = 0) + np.var(high_res_dose_open, axis = 0))/(len(high_res_dose_open) + len(low_res_dose_open))  #np.sqrt(std1**2 + std2**2)/len(std1) + len(std2)
+#pooled standard error
+std_grid = np.sqrt((np.var(low_res_dose_grid, axis = 0) * (len(low_res_dose_grid) - 1) + np.var(high_res_dose_grid, axis = 0) * (len(high_res_dose_grid) - 1))/(len(low_res_dose_grid) + len(high_res_dose_grid) - 2))
+#std error profile
+stderr_grid = np.sqrt(np.sum(std_grid**2, axis = 1))/std_grid.shape[1]
+conf = t.ppf(0.95, len(low_img_grid) + len(high_img_grid) - 2) * np.mean(np.std(np.concatenate((low_res_dose_grid, high_res_dose_grid)), axis = 0), axis = 1)/np.sqrt(len(low_res_dose_grid) + len(high_res_dose_grid))
+"""
 #this is used in surival
 #np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_dose_grid_test.npy", mean_dose_grid)
 
@@ -413,13 +548,10 @@ image_height_cm = low_res_dose_grid.shape[1]/(11.81*10)  #11.81/10 pixels per cm
 image_height = np.linspace(0,image_height_cm,low_res_dose_grid.shape[1])
 
 
-print(low_res_dose_grid.shape)
 
+low_mean_grid = dose_profile(low_res_dose_grid.shape[1],low_res_dose_grid)
 
-low_mean_grid, low_std_grid = dose_profile(low_res_dose_grid.shape[1],low_res_dose_grid)
-
-high_mean_grid, high_std_grid =  dose_profile(high_res_dose_grid.shape[1],high_res_dose_grid)
-
+high_mean_grid =  dose_profile(high_res_dose_grid.shape[1],high_res_dose_grid)
 
 
 """
@@ -455,12 +587,31 @@ print((valley_dose_std_low + valley_dose_std_high)/2)
 true_dose_open = 5 #5 Gy was given nominally
 
 
-low_mean_open, low_std_open = dose_profile(low_res_dose_open.shape[1],low_res_dose_open)
-high_mean_open, high_std_open =  dose_profile(high_res_dose_open.shape[1],high_res_dose_open)
+low_mean_open = dose_profile(low_res_dose_open.shape[1],low_res_dose_open)
+high_mean_open=  dose_profile(high_res_dose_open.shape[1],high_res_dose_open)
 
-print(low_std_open.shape)
-plt.plot(low_mean_open)
-plt.show()
+print(np.concatenate((low_mean_grid,high_mean_grid)).shape)
+
+mean_grid_dose = np.mean(np.concatenate((low_mean_grid,high_mean_grid)),axis = 0)
+mean_open_dose = np.mean(np.concatenate((low_mean_open,high_mean_open)),axis = 0)
+
+print(mean_grid_dose.shape)
+
+
+
+plt.plot(image_height, mean_grid_dose, label = "GRID 5 Gy")
+plt.plot(image_height, mean_open_dose, label ="OPEN 5 Gy")
+plt.fill_between(image_height, mean_grid_dose - conf_grid, mean_grid_dose + conf_grid, alpha = 0.8, color = "cyan", label = "95% CI GRID")
+plt.fill_between(image_height, mean_open_dose - conf_open, mean_open_dose + conf_open, alpha = 0.8, color = "lime", label  = "95% CI OPEN")
+plt.title("Dose profile 5 Gy nominal dose")
+plt.xlabel("Cell flask Position [cm]")
+plt.ylabel("Dose [Gy]")
+plt.legend()
+# plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\dose_profile.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
+# plt.show()
+
+
+
 
 rel_err = np.sum(np.abs((low_mean_open - true_dose_open))/true_dose_open)/(low_mean_open.shape[0]*low_mean_open.shape[1]) + \
           np.sum(np.abs((high_mean_open - true_dose_open))/true_dose_open)/(high_mean_open.shape[0]*high_mean_open.shape[1])
@@ -473,7 +624,7 @@ f.close()
 print("Average relative error  ")
 print(rel_err)"""
 
-plt.subplot(121)
+#plt.subplot(121)
 plt.xlabel("Cell flask Position [cm]")
 plt.ylabel("Dose [Gy]")
 for i in range(len(low_mean_grid)):
@@ -501,14 +652,13 @@ for i in range(len(high_mean_open)):
         plt.plot(image_height,high_mean_open[i],color = "r")
 
 
-mean_grid_con = t.ppf(0.95,len(low_mean_grid) + len(high_mean_grid) - 1)*\
-np.std(np.concatenate((low_mean_grid,high_mean_grid)),axis = 0)/np.sqrt(len(low_mean_grid) + len(high_mean_grid))
-mean_open_con = t.ppf(0.95,len(low_mean_open) + len(high_mean_open)-1)*\
-np.std(np.concatenate((low_mean_open,high_mean_open)),axis = 0)/np.sqrt(len(low_mean_open) + len(high_mean_open))
-mean_grid_dose = np.mean(np.concatenate((low_mean_grid,high_mean_grid)),axis = 0)
-mean_open_dose = np.mean(np.concatenate((low_mean_open,high_mean_open)),axis = 0)
+# mean_grid_con = t.ppf(0.95,len(low_mean_grid) + len(high_mean_grid) - 1)*\
+# np.std(np.concatenate((low_mean_grid,high_mean_grid)),axis = 0)/np.sqrt(len(low_mean_grid) + len(high_mean_grid))
+# mean_open_con = t.ppf(0.95,len(low_mean_open) + len(high_mean_open)-1)*\
+# np.std(np.concatenate((low_mean_open,high_mean_open)),axis = 0)/np.sqrt(len(low_mean_open) + len(high_mean_open))
 
 plt.legend()
+plt.show()
 #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Dose Profile\\dose_profile_stripes.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
 plt.subplot(122)
 
@@ -551,6 +701,7 @@ Alternative plotting: take the mean of each profile to combine low and high resp
 Then have a confidence interval instead
 """
 sys.exit()
+
 plt.plot(image_height, mean_grid_dose)
 plt.plot(image_height, mean_open_dose)
 
