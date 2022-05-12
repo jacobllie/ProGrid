@@ -2,7 +2,7 @@ from survival_analysis4 import survival_analysis
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.stats import f, ttest_ind, chi2
+from scipy.stats import f, ttest_ind, chi2, t
 from kernel_density_estimation import kde
 import seaborn as sb
 from scipy import stats, optimize
@@ -17,6 +17,7 @@ from playsound import playsound
 from sklearn.model_selection import train_test_split
 import pickle
 import skimage.transform as tf
+import statsmodels.api as sm
 
 
 
@@ -46,7 +47,7 @@ template_file_open = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data
 template_file_grid = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 23.11.2021\\18112019\\GRID Stripes\\A549-1811-02-gridS-A-TemplateMask.csv"
 dose_path_open = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_dose_open_test.npy"
 dose_path_grid = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_dose_grid_test.npy"
-save_path = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\ColonyData"
+save_path = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\310821\\ColonyData"
 position = ["A","B","C","D"]
 
 # kernel_size = 3.9 #mm
@@ -82,19 +83,19 @@ if control == True:
     #cropping_limits_1D = [50,2700, 10,2000]
     #cropping_limits_1D = [50,2700, 70,1900]  #this matches with dose film the most
 
-    cropping_limits_1D = [100,2700, 70,2100]  #this matches with dose film the most
-
+    cropping_limits_1D = [200,2500, 70,2100]  #this matches with dose film the most
+    #cropping_limits_1D = [200,2000,350,1850]
 
     flask_template = np.asarray(pd.read_csv(template_file_control))[cropping_limits_1D[0]:cropping_limits_1D[1],cropping_limits_1D[2]:cropping_limits_1D[3]]
 
     plt.imshow(flask_template)
-    plt.show()
+    plt.close()
 
     survival_control = survival_analysis(folder, time, mode[0], position,
                        kernel_size_p[0], dose_map_path = None,
                        template_file = template_file_control,
                        save_path = save_path, dose = ctrl_dose, cropping_limits = cropping_limits_1D,
-                       data_extract = True)
+                       data_extract = False)
     ColonyData_control, data_control = survival_control.data_acquisition()
 
     colony_map_ctrl = survival_control.Colonymap()
@@ -125,11 +126,26 @@ if control == True:
     print(num_colonies_ctrl.shape)
     #image height is needed for plotting later
 
+    print(flask_template.shape)
     #want to include all data for cells
-    image_height = np.linspace(0,int(flask_template.shape[0]/47),flask_template.shape[0]) #mm
-    plt.suptitle("Crop {}".format(flask_template.shape))
-    plt.subplot(121)
-    plt.imshow(flask_template)
+    image_height_px = np.linspace(0,flask_template.shape[0],10)
+    #image_height_mm = np.linspace(0,round(flask_template.shape[0]/47,1),flask_template.shape[0]) #mm
+    image_height_mm = [round(pos/(47*10),1) for pos in image_height_px]
+    image_width_px = np.linspace(0,flask_template.shape[1],10)
+    image_width_mm = [round(pos/(47*10),1) for pos in image_width_px]
+
+    print(image_height_mm, image_width_mm)
+
+
+    fig,ax = plt.subplots(nrows = 1, ncols = 2, figsize = (10,5))
+    ax[0].set_title("Flask template")
+    ax[0].set_yticks(image_height_px, labels = image_height_mm)
+    ax[0].set_xticks(image_width_px, labels = image_width_mm)
+    ax[0].set_ylabel("y [cm]")
+    ax[0].set_xlabel("x [cm]")
+    ax[0].imshow(flask_template)
+    ax[0].patch.set_edgecolor('black')
+    ax[0].patch.set_linewidth('2')
 
     row_weight = np.zeros(len(flask_template))
     for i in range(len(flask_template)):
@@ -139,10 +155,12 @@ if control == True:
             row_weight[i] = 0
         else:
             row_weight[i] = 1 + zeros/ones
-    plt.subplot(122)
-    plt.plot(row_weight)
-    #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\1D analysis\\weightfactor_{}.png".format(flask_template.shape), dpi = 1200)
-    plt.show()
+    ax[1].set_title("Row weights")
+    ax[1].plot(row_weight)
+    ax[1].set_xlabel("Position in cell flask [cm]")
+    ax[1].set_ylabel("1 + zeros/ones")
+    # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\1D analysis\\weightfactor_{}.png".format(flask_template.shape), dpi = 1200, pad_inches = 0.4)
+    plt.close()
 
     """
     Iterating over all rows in colonymap and summing up surviving colonies shouldn't there be more since they are 47*37 bands?
@@ -155,7 +173,8 @@ if control == True:
                     m = l - cropping_limits_1D[0] #num_colonies not as big as colony_map
                     num_colonies_ctrl[i,j,k,m] = np.sum(colony_map_ctrl[i,j,k,l])*row_weight[m]
     #finding mean number of surviving colonies for all times and all positions
-
+    plt.plot(num_colonies_ctrl[0,0,0],"*")
+    plt.close()
 
     mean_colonies_ctrl = np.mean(num_colonies_ctrl, axis = (0,2,3))
     std_colonies_ctrl = np.std(num_colonies_ctrl, axis = (0,2,3))
@@ -169,7 +188,7 @@ if open_ == True:
                                       kernel_size_p[0], dose_path_open,
                                       template_file_open,
                                       save_path = save_path, dose = dose,
-                                      cropping_limits = cropping_limits_1D, data_extract = True)
+                                      cropping_limits = cropping_limits_1D, data_extract = False)
     #gathering colonydata, and count data
     ColonyData_open, data_open  = survival_open.data_acquisition()
     #placing colonies in their respective coordinates
@@ -196,7 +215,7 @@ if open_ == True:
             for k in range(len(position)):
                 for l in range(cropping_limits_1D[0],cropping_limits_1D[1]):
                     m = l - cropping_limits_1D[0]
-                    num_colonies_open[i,j,k,m] = np.sum(colony_map_open[i,j,k,l]) #*row_weight[m]
+                    num_colonies_open[i,j,k,m] = np.sum(colony_map_open[i,j,k,l])*row_weight[m]
     #finding mean number of surviving colonies for all times and all positions
 
     print(num_colonies_open.shape)
@@ -212,9 +231,19 @@ if open_ == True:
     n = 2*4 #we have 8 flasks per dose
 
 
+    print(colony_map_open[:,:-1,:,cropping_limits_1D[0]:cropping_limits_1D[1],cropping_limits_1D[2]:cropping_limits_1D[3]].shape)
+
     surviving_colonies_open = np.sum(colony_map_open[:,:-1], axis = (3,4))
 
     surviving_colonies_ctrl = np.sum(colony_map_ctrl, axis = (3,4))
+
+
+
+    #surviving_colonies_open = np.sum(colony_map_open[:,:-1,:,cropping_limits_1D[0]:cropping_limits_1D[1],cropping_limits_1D[2]:cropping_limits_1D[3]], axis = (3,4))
+
+    #surviving_colonies_ctrl = np.sum(colony_map_ctrl[:,:,:,cropping_limits_1D[0]:cropping_limits_1D[1],cropping_limits_1D[2]:cropping_limits_1D[3]], axis = (3,4))
+
+
 
     print(surviving_colonies_ctrl.shape, surviving_colonies_open.shape)
 
@@ -238,56 +267,101 @@ if open_ == True:
                 np.append(np.repeat(2,len(surviving_colonies_open[:,0].flatten())),
                 np.repeat(5,len(surviving_colonies_open[:,1].flatten())))) #2 dates, 4 positions
 
+    # mean_survival_ctrl = np.mean(surviving_colonies_ctrl, axis = 0)
     mean_survival_ctrl = np.mean(surviving_colonies_ctrl, axis = 0)
+
     combined_survival = np.append(surviving_colonies_ctrl[:,0]/mean_survival_ctrl,
                         np.append(surviving_colonies_open[:,0]/mean_survival_ctrl,
                         surviving_colonies_open[:,1]/mean_survival_ctrl))
 
 
+    """
+    Using statsmodels to fit instead of polyfit
+    """
+
+method1 = True
+if method1:
 
 
+        dose_interp = np.linspace(0,10,1000)
+        X = np.array([np.repeat(1, len(dose_axis)), dose_axis, dose_axis**2]).T
+        X_ = np.array([np.repeat(1, len(dose_interp)), dose_interp, dose_interp**2]).T
+
+        fit = sm.OLS(np.log(combined_survival), X).fit()
 
 
-    plt.plot(dose_axis,np.log(combined_survival), "*")
-    plt.show()
+        S_ = fit.params[1] * dose_interp + fit.params[2]*dose_interp**2
+        print(fit.summary())
+        predictions = fit.get_prediction(X_)
+        frame = predictions.summary_frame(alpha=0.05)
+        print(frame.mean_ci_lower)
+        plt.plot(dose_axis,np.log(combined_survival), "*", label = "data")
+        plt.xlabel("Dose [Gy]", fontsize = 12)
+        plt.ylabel(r"$S_{irr}/\bar{S}_{ctrl}$", fontsize = 15)
+        #plt.plot(dose_interp, frame.obs_ci_lower, "--", c = "darkviolet")
+        #plt.plot(dose_interp, frame.obs_ci_upper, "--", label = "P.I. 95%", c = "darkviolet")
+        #plt.plot(dose_interp, frame.mean_ci_lower, "--", c = "navy")
+        #plt.plot(dose_interp, frame.mean_ci_upper, "--", label = "C.I. 95%", c = "navy")
+        plt.fill_between(dose_interp,  frame.mean_ci_lower, frame.mean_ci_upper, color = "navy", label = "C.I. 95%", alpha = 0.6)
+        #plt.fill_between(dose_interp,  frame.obs_ci_lower,  frame.obs_ci_upper, color = "darkviolet", label = "P.I. 95%", alpha = 0.6)
+
+        plt.plot(dose_interp, fit.predict(X_),label = r"({:+f} $\pm$ {:f} D) {:+f} $\pm$ {:f} $D^2$".format(fit.params[1], fit.bse[1], fit.params[2], fit.bse[2]) )
+        #plt.plot(dose_interp, S_, label = r"({:+f} $\pm$ {:f} d) {:+f} $\pm$ {:f} $d^2$".format(fit.params[1], fit.bse[1], fit.params[2], fit.bse[2]))
+        plt.legend()
+        # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\1D analysis\\LQ_model_1D.png", bbox_inches ="tight", pad_inches = 0.1, dpi = 1200)
+        plt.close()
+
+method2 = False
+if method2:
     coeff,cov = np.polyfit(dose_axis,np.log(combined_survival),full = False,deg = 2, cov = True) #coeff from x^n to intercept
-    cov = np.diag(cov)
+    stderr_residual = np.sqrt(np.sum((np.polyval(coeff, dose_axis) - np.log(combined_survival))**2)/(n-2))#np.sqrt(np.sum((np.polyval(coeff, dose_axis) - combined_survival)**2/(n-2)))
 
+    print(cov)
+    print(stderr_residual)
+
+
+
+    cov = np.diag(cov)[::-1] #flipping cov so alpha is second element and beta is third
+    print("sdfnjksfdnjksfdnj")
+    print(cov)
     n = len(combined_survival)
-    cov = np.diag(cov[:-1]) #only include uncertainty in beta and alpha
+    cov = np.diag(cov[1:]) #only include uncertainty in beta and alpha
 
+    print(cov)
     dose_interp = np.linspace(0,10,1000)
 
-    chi2 = chi2.ppf(0.95,1)
-    print(chi2)
+    # chi2 = chi2.ppf(0.95,1)
+    # print(chi2)
     #print(chi2.shape)
-
-
 
     """
     For dose = 0, the derivative will become 0, so we need to use
-    the second order delta method
+    the second order delta method but dont know how
     """
 
-    dSdp = np.array([dose_interp + 1, 2*coeff[0]*(dose_interp + 1)])
+    dSdp = np.array([dose_interp, dose_interp**2]) #dS/dalpha, dS/dbeta
 
-    cov_S = (dSdp.T.dot(cov).dot(dSdp)) * chi2
-    t_crit = stats.t.ppf(0.95, n - k)
+    cov_S = (dSdp.T.dot(cov).dot(dSdp))# * chi2
+    t_crit = stats.t.ppf(0.95, n - 2)
+
+    print(cov_S)
 
     _,MSE,_,_,_ = np.polyfit(dose_axis,np.log(combined_survival),full = True,deg = 2)
 
     MSE = MSE/n
     print(MSE)
+
     sx = np.std(dose_interp)
     mean_x = np.mean(dose_interp)
-    print(combined_survival)
+    #print(combined_survival)
     plt.title("LQ model fitted to normalized log survival data")
     plt.xlabel("Dose")
     plt.ylabel(r"$\log{S_{irr}/S_{ctrl}}$")
-    plt.plot(dose_interp, np.polyval(coeff, dose_interp), label = r"{:+f} $\pm$ {:f} d {:+f} $\pm$ {:f} $d^2$".format(coeff[1], np.diag(np.sqrt(cov))[0], coeff[0], np.diag(np.sqrt(cov))[1]))
+    #first element of cov is uncertainty in highest order x
+    plt.plot(dose_interp, np.polyval(coeff, dose_interp), label = r"({:+f} $\pm$ {:f} d) {:+f} $\pm$ {:f} $d^2$".format(coeff[1], np.diag(np.sqrt(cov))[0], coeff[0], np.diag(np.sqrt(cov))[1]))
     plt.plot(dose_axis,np.log(combined_survival), "*",label = "data")
     #we need to divide the standard deviation with the square root of number of points per dose because the mean is supposed to be inside the confidence interval 95% of the times.
-    #plt.fill_between(dose_interp, np.polyval(coeff,dose_interp) - t_crit * np.sqrt(np.diag(cov_S))/np.sqrt(n), np.polyval(coeff, dose_interp) + t_crit * np.sqrt(np.diag(cov_S))/np.sqrt(n), alpha = 0.5, color = "grey")
+    #plt.fill_between(dose_interp, np.polyval(coeff,dose_interp) - t_crit * np.sqrt(np.diag(cov_S)), np.polyval(coeff, dose_interp) + t_crit * np.sqrt(np.diag(cov_S)), alpha = 0.5, color = "grey")
     CI_p = t_crit *np.sqrt(MSE *(1/n + 1 + (dose_interp - np.mean(dose_interp))**2/np.std(dose_interp)**2))
     CI = t_crit *np.sqrt(MSE *(1/n  + (dose_interp - np.mean(dose_interp))**2/np.std(dose_interp)**2))
 
@@ -309,7 +383,7 @@ if Grid == True:
     survival_grid = survival_analysis(folder, time, mode[2], position,
                                       kernel_size_p[0], dose_path_grid,
                                       template_file_grid, save_path = save_path,
-                                      dose = dose, cropping_limits =  cropping_limits_1D, data_extract = True)
+                                      dose = dose, cropping_limits =  cropping_limits_1D, data_extract = False)
     ColonyData_grid, data_grid  = survival_grid.data_acquisition()
     colony_map_grid = survival_grid.Colonymap()
 
@@ -334,6 +408,9 @@ if Grid == True:
                     m = l - cropping_limits_1D[0]
                     num_colonies_grid[i,j,k,m] = np.sum(colony_map_grid[i,j,k,l])*row_weight[m]
 
+    plt.plot(num_colonies_grid[0,0,0], "*")
+    plt.close()
+
 
     print(num_colonies_grid.shape)
     print(num_colonies_ctrl.shape)
@@ -351,21 +428,19 @@ if Grid == True:
     """
     1D Dose profiles with survival, will only perform this using 5 Gy
     """
-    dose_map_open = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_film_dose_map_reg_Open.npy", allow_pickle = True)
-    dose_map_grid = np.load("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_film_dose_map_reg_GRID Stripes.npy")
 
-    # [250:2750, 100:2100]
     #[cropping_limits_1D[0]:cropping_limits_1D[1],cropping_limits_1D[2],cropping_limits_1D[3]:cropping_limits_1D[4]]
     #we need uncertainty of the doses
-    dose_map_open = dose_map_open[cropping_limits_1D[0]:cropping_limits_1D[1], 500:1500]
-    dose_map_grid = dose_map_grid[cropping_limits_1D[0]:cropping_limits_1D[1], 500:1500]
+    #dose_map_open = dose_map_open[cropping_limits_1D[0]:cropping_limits_1D[1], cropping_limits_1D[2]:cropping_limits_1D[3]]
+    dose_map_grid = survival_grid.registration()  #ideal dose map cropping limits
+
+    dose_map_grid = dose_map_grid[cropping_limits_1D[0]:cropping_limits_1D[1], 800:1600]
 
 
-    """plt.subplot(121)
-    plt.imshow(dose_map_grid[250:2750, 500:1500])
-    plt.subplot(122)
-    plt.imshow(dose_map_open[250:2750, 500:1500])"""
 
+    #print(dose_map_grid.shape)
+
+    #plt.imshow(dose_map_grid)
     plt.close()
 
     """
@@ -373,15 +448,16 @@ if Grid == True:
     within these bands. The larger the band, the more smoothed dose
     """
 
-    dx = 1 #mm
+    dx = 0.5 #mm  similar to our Poisson regression
     survival_bands = int(dx*47)  #pixels
     num_bands = flask_template.shape[0]//survival_bands
 
     new_image_height = survival_bands*num_bands
 
-    split_image_height = np.array([int(i/47) for i in np.arange(0,new_image_height,survival_bands)])
-    split_image_height = split_image_height/10
+    split_image_height = np.arange(0,new_image_height,survival_bands)
+    split_image_height = split_image_height/(47*10)
     #remember to sum before finding mean
+
 
     """
     Num_colonies is number of colonies per row of the colony map.
@@ -392,37 +468,137 @@ if Grid == True:
     We sum over the 47 pixels, then find the mean within all our scanned images
     for time t and position p.
     """
+    #finding mean dose within the bands
 
 
+    dose = np.mean(dose_map_grid[:new_image_height], axis = 1)
+    #plt.plot(np.arange(0,new_image_height, 1)/(47*10), np.log(dose/np.max(dose)))
+    # plt.show()
+
+    #find mean dose in each row, then divide into bands
+    tmp_profile =  np.mean(dose_map_grid[:new_image_height],axis = 1).reshape(num_bands,survival_bands)
+    #find mean dose within all those bands, finding essentially the mean of the mean
+    dose_profile = np.mean(tmp_profile, axis = 1)
+
+
+    print(split_image_height.shape)
+
+    """
+    Splitting survival maps into survival bands, and summing up surviving colonies within these bands
+    """
     survival_profile_ctrl = np.mean(np.sum(num_colonies_ctrl[:,:,:,:new_image_height]\
     .reshape(num_colonies_ctrl.shape[0],num_colonies_ctrl.shape[1],num_colonies_ctrl.shape[2],num_bands,survival_bands), axis = 4),axis = (0,2))
 
-
-    mean_survival_ctrl = np.mean(survival_profile_ctrl)
+    # mean_survival_ctrl = np.mean(survival_profile_ctrl)
 
     survival_profile_open = np.mean(np.sum(num_colonies_open[:,:,:,:new_image_height]\
-    .reshape(num_colonies_open.shape[0],num_colonies_open.shape[1],num_colonies_open.shape[2],num_bands,survival_bands),axis = 4),axis = (0,2))/mean_survival_ctrl
+    .reshape(num_colonies_open.shape[0],num_colonies_open.shape[1],num_colonies_open.shape[2],num_bands,survival_bands),axis = 4),axis = (0,2))
 
     survival_profile_grid = np.mean(np.sum(num_colonies_grid[:,:,:,:new_image_height]\
-    .reshape(num_colonies_grid.shape[0],num_colonies_grid.shape[1],num_colonies_grid.shape[2],num_bands,survival_bands),axis = 4),axis = (0,2))/mean_survival_ctrl
+    .reshape(num_colonies_grid.shape[0],num_colonies_grid.shape[1],num_colonies_grid.shape[2],num_bands,survival_bands),axis = 4),axis = (0,2))
+
+    survival_grid_stderr = np.std(np.sum(num_colonies_grid[:,:,:,:new_image_height]\
+    .reshape(num_colonies_grid.shape[0],num_colonies_grid.shape[1],num_colonies_grid.shape[2],num_bands,survival_bands), axis = 4), axis = (0,2))/(np.sqrt(num_colonies_grid.shape[0] + num_colonies_grid.shape[2]))
 
 
+    plt.imshow(num_colonies_grid[:,:,:,:new_image_height]\
+    .reshape(num_colonies_grid.shape[0],num_colonies_grid.shape[1],num_colonies_grid.shape[2],num_bands,survival_bands)[0,0,0])
+    plt.close()
+
+    survival_grid_stderr = survival_grid_stderr / np.mean(survival_profile_ctrl)
+    survival_profile_open= survival_profile_open / np.mean(survival_profile_ctrl)
+    survival_profile_grid = survival_profile_grid / np.mean(survival_profile_ctrl)
+    survival_profile_ctrl = survival_profile_ctrl / np.mean(survival_profile_ctrl)
+
+
+
+    """
+    Trying the non vectorized method, but I think the result is the same......
+    Yes that was true
+    """
+
+    """
+    survival_profile_ctrl = np.zeros((1,len(split_image_height)))
+    survival_profile_open = np.zeros((2,len(split_image_height))) #2 5 Gy
+    survival_profile_grid = np.zeros((3,len(split_image_height))) #2 5 10 Gy
+    survival_grid_stderr = np.zeros((3,len(split_image_height)))
+
+    idx = 0
+    for i in range(survival_bands,new_image_height+1, survival_bands):
+        print(i, new_image_height)
+        survival_profile_ctrl[:,idx] = np.mean(np.sum(num_colonies_ctrl[:,:,:,i-survival_bands:i],axis = 3),axis = (0,2))
+        survival_profile_open[:,idx] = np.mean(np.sum(num_colonies_open[:,:,:,i-survival_bands:i],axis = 3),axis = (0,2))
+        survival_profile_grid[:,idx] = np.mean(np.sum(num_colonies_grid[:,:,:,i-survival_bands:i],axis = 3),axis = (0,2))
+        #stderr of survival within each band
+        survival_grid_stderr[:,idx] = np.std(np.sum(num_colonies_grid[:,:,:,i-survival_bands:i], axis = 3),axis = (0,2))/np.sqrt(num_colonies_grid.shape[0]+ num_colonies_grid.shape[2])
+        idx += 1
+
+    survival_grid_stderr = survival_grid_stderr / np.mean(survival_profile_ctrl)
+    survival_profile_open= survival_profile_open / np.mean(survival_profile_ctrl)
+    survival_profile_grid = survival_profile_grid / np.mean(survival_profile_ctrl)
+    survival_profile_ctrl = survival_profile_ctrl / np.mean(survival_profile_ctrl)"""
+
+
+    """
+    Add prediction survival, using the LQ model with coeff[0,1]
+    Insert dose profile with coeff into log lq
+    """
 
 
     """
     Add confidence
     """
 
+    if method1:
+        """
+                        mean   mean_se  mean_ci_lower  mean_ci_upper  obs_ci_lower  obs_ci_upper
+        0  -0.264276  0.041556      -0.350695      -0.177856     -0.512226     -0.016326
+        1  -0.068250  0.030350      -0.131365      -0.005134     -0.309070      0.172570
+        2  -0.063756  0.030094      -0.126340      -0.001172     -0.304437      0.176926
+        3  -0.062470  0.030033      -0.124926      -0.000013     -0.303118      0.178178
+        4  -0.061718  0.029999      -0.124106       0.000669     -0.302349      0.178912
+        ..       ...       ...            ...            ...           ...           ...
+        95 -0.429416  0.034493      -0.501148      -0.357683     -0.672636     -0.186195
+        96 -0.424993  0.034678      -0.497110      -0.352876     -0.668327     -0.181658
+        97 -0.264669  0.041550      -0.351077      -0.178261     -0.512615     -0.016723
+        98 -0.074574  0.030800      -0.138625      -0.010522     -0.315641      0.166494
+        99 -0.069516  0.030432      -0.132803      -0.006229     -0.310381      0.171349
+        """
+        print(dose_profile.shape)
+        X_dose = np.array([np.repeat(1,len(dose_profile)), dose_profile, dose_profile**2]).T
+        predframe = fit.get_prediction(X_dose).summary_frame(alpha = .05)
+        print(predframe)
+        #not pred.mean for some reason
+        predicted = np.exp(fit.predict(X_dose))
+        #print(predicted_SC)
+        # S_ = predicted.
+    elif method2:
+        predicted = np.polyval(coeff,dose_profile)
+
+    # observed = np.log(survival_profile_grid[1]) #5 Gy
+    observed = survival_profile_grid[1]
+     #print(np.exp(observed) - t.ppf(0.95, len(dose_profile))*np.exp(survival_grid_stderr[1]))
+
+    print(np.min(np.abs(predicted - observed)/((predicted + observed)/2)))
+    diff = np.abs(predicted - observed)/((predicted + observed)/2) #(np.exp(predicted) - np.exp(observed))/np.exp(observed)
+
     plt.title("dx = {} mm".format(dx))
     plt.xlabel("Position in flask [mm]")
     plt.ylabel("Survival [a.u.]")
-    plt.plot(split_image_height, survival_profile_grid[2], label = "GRID 5 Gy")
+    plt.plot(split_image_height, observed, label = "GRID 5 Gy observed", color = "navy")
+    plt.plot(split_image_height,predicted, "o-", label = "GRID 5 Gy predicted", color = "darkorange")
+    plt.fill_between(split_image_height, np.exp(predframe.mean_ci_lower), np.exp(predframe.mean_ci_upper), alpha = 0.6, color = "orange", label = "95% C.I. pred")
+    plt.fill_between(split_image_height, observed - t.ppf(0.95, len(dose_profile))*survival_grid_stderr[1],
+                                          observed + t.ppf(0.95, len(dose_profile))*survival_grid_stderr[1], alpha = 0.6, color = "deepskyblue", label = "95% C.I. obs.")
+    plt.plot(split_image_height,diff, "--", label = "|pred-obs|/pred")
+
+    #plt.plot(split_image_height, np.log(dose_profile/np.max(dose_profile)), label = "dose")
     #plt.plot(split_image_height, survival_profile_grid[1],label = "GRID 2 Gy")
     # plt.plot(split_image_height, survival_profile_ctrl[0],label = "Ctrl")
     #plt.plot(split_image_height,survival_profile_open[1],label = "Open 5 Gy")
     #plt.plot(split_image_height,survival_profile_open[0],label = "Open 2 Gy")
-    plt.ylim([-0.5,1.5])
-    plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\survival_profile.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
+    #plt.ylim([-0.5,1.5])
+    #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\survival_profile.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
     plt.legend()
 
     plt.show()

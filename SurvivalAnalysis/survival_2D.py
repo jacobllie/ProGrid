@@ -49,7 +49,7 @@ dose_path_open = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\31
 dose_path_grid = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_dose_grid_test.npy"
 save_path = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\310821\\ColonyData"
 position = ["A","B","C","D"]
-
+colors = ["b","g","r","grey","m","y","black","saddlebrown"]
 # kernel_size = 3.9 #mm
 # kernel_size = int(kernel_size*47) #pixels/mm
 #cropping_limits = [250,2200,300,1750]
@@ -58,12 +58,15 @@ position = ["A","B","C","D"]
 #cropping_limits = [225,2200,350,1950]
 # cropping_limits = [210,2100,405,1900]
 
-kernel_size_mm = [0.5,1,2,3,4]
+kernel_size_mm = [0.5,1,2,3]
 # kernel_size_mm = [0.5,1,2,3,4]
 kernel_size_p = [int(i*47) for i in kernel_size_mm]
 # cropping_limits_2D = [100,2000,100,2050] #absolute max area
-cropping_limits_2D = [100,2000,350,1850]
-num_regressors = 3
+#cropping_limits_2D = [100,2000,350,1850]
+cropping_limits_2D = [200,2000,350,1850]
+
+peak_dist_reg = False
+num_regressors = 2
 
 plt.style.use("seaborn")
 """
@@ -126,7 +129,7 @@ for i in range(len(kernel_size_mm)):
 
 
 
-    open_= False
+    open_= True
 
     if open_ == True:
         #removing edges
@@ -135,16 +138,20 @@ for i in range(len(kernel_size_mm)):
                                           kernel_size_p[i], dose_path_open,
                                           template_file_open,
                                           save_path = save_path, dose = dose,
-                                          cropping_limits = cropping_limits_2D, data_extract = True)
+                                          cropping_limits = cropping_limits_2D, data_extract = False)
         #gathering colonydata, and count data
         ColonyData_open, data_open  = survival_open.data_acquisition()
         #placing colonies in their respective coordinates
         colony_map_open = survival_open.Colonymap()
 
+        survival_open.registration()
 
-        #dont need to crop colonymap
+        
 
-        #skipping 10 Gy because the algorithm doesnt work for this dose
+        survival_open.Quadrat() #2D analysis
+
+        dose2Gy_open, SC_open_2Gy = survival_open.SC(2)
+        dose5Gy_open, SC_open_5Gy = survival_open.SC(5)
 
 
     test_image = np.asarray(pd.read_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\18112019\\GRID Stripes\\A549-1811-05-gridS-A-SegMask.csv"))
@@ -207,7 +214,7 @@ for i in range(len(kernel_size_mm)):
 
             if i == len(kernel_size_mm) - 1:
                 df_pois = df_pois.set_index(pd.Index(kernel_size_mm, name = "Kernel Size [mm]"))
-                #df_pois.to_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\Poisson\\poisson_test.csv",)
+                #df_pois.to_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\poisson_test.csv",)
 
                 fig, ax = plt.subplots(nrows = 1,ncols = 2)
                 ax1 = ax[0]
@@ -238,13 +245,20 @@ for i in range(len(kernel_size_mm)):
                 ax4.plot(kernel_size_mm, rel_diff[:,1], color=color)
                 ax4.tick_params(axis='y', labelcolor=color)
                 fig.tight_layout()  # otherwise the right y-label is slightly clipped
-                #fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\Poisson\\kernel_size_eval.png", pad_inches = 0.2, bbox_inches = "tight", dpi = 1200)
+                #fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\kernel_size_eval.png", pad_inches = 0.2, bbox_inches = "tight", dpi = 1200)
                 plt.show()
 
 
+        #[210,2240,405,1900]
+        if peak_dist_reg or num_regressors == 4:  #for 4 regressors we need peak dist anyways
+            peak_dist = survival_grid.nearest_peak(cropping_limits_2D)/(47*10) #distance from pooled dose quadrat centers to peak dose in cm
+            #same peak dist for all doses
+            peak_dist = np.tile(np.ravel(peak_dist),len(dose)*pooled_SC_ctrl.shape[0]*pooled_SC_ctrl.shape[1]*pooled_SC_ctrl.shape[2])
 
-        peak_dist = survival_grid.nearest_peak([210,2240,405,1900])/(47*10) #distance from pooled dose quadrat centers to peak dose in cm
-        peak_dist = np.tile(np.ravel(peak_dist),len(dose)*pooled_SC_ctrl.shape[0]*pooled_SC_ctrl.shape[1])
+            print(peak_dist.shape)
+
+        #print(pooled_SC_ctrl.shape)
+
 
 
 
@@ -298,10 +312,10 @@ for i in range(len(kernel_size_mm)):
         X_grid = design_matrix(len(SC_grid),tot_dose_axis_grid, 4, peak_area_ratio, valley_area_ratio)
 
 
-        grid_dots = False
+        grid_dots = True
         if grid_dots == True:
-            X_grid_dots = np.loadtxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_X_{}regressors.npy".format(num_regressors))
-            SC_grid_dots = np.loadtxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_SC_{}regressors.npy".format(num_regressors))
+            X_grid_dots = np.loadtxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\GRID_Dots_X_{}regressors.npy".format(num_regressors))
+            SC_grid_dots = np.loadtxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\GRID_Dots_SC_{}regressors.npy".format(num_regressors))
             X_grid_dots_train, X_grid_dots_test, SC_grid_dots_train, SC_grid_dots_test = train_test_split(X_grid_dots,SC_grid_dots, test_size = 0.2)
 
 
@@ -331,10 +345,10 @@ for i in range(len(kernel_size_mm)):
         mean_obs_SC_train = mean_survival(X_train,SC_train)
 
 
-        model, mean_pred_SC_train, summary = poisson_regression(SC_train,X_train,4,
+        model, mean_pred_SC_train, summary = poisson_regression(SC_train,X_train,5,
                                   r"GRID&OPEN: Surviving colonies within {:.1f} X {:.1f} $mm^2$ square".format(kernel_size/47, kernel_size/47),
                                   'C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GLM_results_39mm_GRID&OPEN_w.G_factor.tex',
-                                  False)
+                                  True)
 
         plt.show()
 
@@ -353,7 +367,7 @@ for i in range(len(kernel_size_mm)):
         pred_vs_true_SC(mean_obs_SC_train, mean_pred_SC_train, dose_axis_train, "Train")
         plt.subplot(122)
         pred_vs_true_SC(mean_obs_SC_test, mean_pred_SC_test, dose_axis_test, "Test")
-        plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_train_test_39mm_survival.png", dpi = 1200)
+        # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_train_test_39mm_survival.png", dpi = 1200)
 
         plt.show()
 
@@ -376,7 +390,7 @@ for i in range(len(kernel_size_mm)):
         pred_vs_true_SC(mean_obs_SC_open, mean_pred_SC_open, dose_axis_open, "OPEN")
         plt.subplot(122)
         pred_vs_true_SC(mean_obs_SC_grid, mean_pred_SC_grid, dose_axis_grid, "GRID")
-        plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_open_grid_39mm_survival.png", dpi = 1200)
+        # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_open_grid_39mm_survival.png", dpi = 1200)
         plt.show()
 
 
@@ -476,34 +490,36 @@ for i in range(len(kernel_size_mm)):
                                                        False)
 
         plt.show()
-    method3 = False
+    method3 = True
     if method3 == True:
         """
         Introduce distance to peak as a regressor
         """
-        tot_irradiatet_area = 24.505*100 #mm^2
-        peak_area = 3*215+170.75 #3 full peaks, 1 trapezoidal peak
-        valley_area_ratio = (tot_irradiatet_area-peak_area)/tot_irradiatet_area
-        peak_area_ratio = peak_area/tot_irradiatet_area
+        tot_irradiated_area = 25*100  #mm^2 #24.505*100 #mm^2
+        peak_area = 3*215+170.75 #3 full peaks, 1 trapezoidal peak mm^2
+        peak_area_ratio = peak_area/tot_irradiated_area
+        valley_area_ratio = 1-peak_area_ratio  #(tot_irradiatet_area-peak_area)/tot_irradiatet_area
 
-
-
+        print(peak_area_ratio,valley_area_ratio)
         SC_open, tot_dose_axis_open = data_stacking_2(False, SC_open_2Gy,
                                                     SC_open_5Gy, dose2Gy_open,
                                                     dose5Gy_open)
         SC_grid, tot_dose_axis_grid = data_stacking_2(True, SC_grid_2Gy,
                                                       SC_grid_5Gy, SC_grid_10Gy,
                                                       dose2Gy_grid, dose5Gy_grid, dose10Gy_grid)
+        print(SC_open.shape,SC_grid.shape,tot_dose_axis_open.shape,tot_dose_axis_grid.shape)
 
         grid_dots = True
         if grid_dots == True:
-            with open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_X_{}regressors.pickle".format(num_regressors), 'rb') as handle:
+            with open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Dotted GRID\\GRID_Dots_X_{}regressors.pickle".format(num_regressors), 'rb') as handle:
                 tmp_data = pickle.load(handle)
                 X_grid_dots = tmp_data[kernel_size_mm[i]]
-            with open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_SC_{}regressors.pickle".format(num_regressors), 'rb') as handle:
+                print(X_grid_dots.shape)
+            with open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Dotted GRID\\GRID_Dots_SC_{}regressors.pickle".format(num_regressors), 'rb') as handle:
                 tmp_data = pickle.load(handle)
                 SC_grid_dots = tmp_data[kernel_size_mm[i]]
-            fig = plt.figure(figsize=(4,4))
+                print(SC_grid_dots.shape)
+            """fig = plt.figure(figsize=(4,4))
             ax = fig.add_subplot(111, projection='3d')
 
             ax.set_xlabel('X Label')
@@ -511,7 +527,7 @@ for i in range(len(kernel_size_mm)):
             ax.set_zlabel('Z Label')
             ax.scatter(X_grid_dots[:,1],X_grid_dots[:,-1] , SC_grid_dots)  #dose distance survival
             #ax.invert_yaxis()
-            plt.close()
+            plt.close()"""
             # X_grid_dots = np.loadtxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_X_w.g_factor.npy")
             # SC_grid_dots = np.loadtxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GRID_Dots_SC_w.g_factor.npy")
             X_grid_dots_train, X_grid_dots_test, SC_grid_dots_train, SC_grid_dots_test = train_test_split(X_grid_dots,SC_grid_dots, test_size = 0.2)
@@ -522,12 +538,61 @@ for i in range(len(kernel_size_mm)):
         Adding the control survival and doses (0Gy) to open. Then make individual design matrix with different G factors
         """
         #peak_dist = np.tile(np.ravel(peak_dist),len(dose)*pooled_SC_ctrl.shape[0]*pooled_SC_ctrl.shape[1])
-        # peak_dist = [i**2 if i > 0 else 0 for i in stacked_dist]
-        tmp = np.repeat(dose2Gy_grid*0,pooled_SC_ctrl.shape[0]*pooled_SC_ctrl.shape[1])
-        X_ctrl = design_matrix(len(np.ravel(pooled_SC_ctrl)), tmp, num_regressors, 0,0,0)
-        X_open = design_matrix(len(SC_open),tot_dose_axis_open,num_regressors,1,0,0)
-        X_grid = design_matrix(len(SC_grid),tot_dose_axis_grid, num_regressors, peak_area_ratio, valley_area_ratio, peak_dist)
+        #peak_dist = [i**2 if i > 0 else 0 for i in stacked_dist]
+        # tmp = np.repeat(dose2Gy_grid*0,pooled_SC_ctrl.shape[0]*pooled_SC_ctrl.shape[1]*pooled_SC_ctrl.shape[2])
+        if num_regressors == 1:
+            pass
+        elif num_regressors == 2:
+            tot_len = len(np.ravel(pooled_SC_ctrl))
+            X_ctrl = np.array([np.repeat(1,tot_len),np.repeat(0,tot_len),np.repeat(0,tot_len)]).T#design_matrix(len(np.ravel(pooled_SC_ctrl)), tmp, num_regressors, 0,0,0)
 
+            tot_len = len(tot_dose_axis_open)
+            X_open =  np.array([np.repeat(1,tot_len),
+                                tot_dose_axis_open, tot_dose_axis_open**2]).T#design_matrix(len(SC_open),tot_dose_axis_open,num_regressors,1,0,0)
+            tot_len = len(tot_dose_axis_grid)
+            X_grid =  np.array([np.repeat(1,tot_len),
+                                tot_dose_axis_grid, tot_dose_axis_grid**2]).T
+
+        elif num_regressors == 3:
+            tot_len = len(np.ravel(pooled_SC_ctrl))
+            X_ctrl = np.array([np.repeat(1,tot_len),np.repeat(0,tot_len),np.repeat(0,tot_len),
+                               np.repeat(0,tot_len)]).T#design_matrix(len(np.ravel(pooled_SC_ctrl)), tmp, num_regressors, 0,0,0)
+
+            tot_len = len(tot_dose_axis_open)
+            if peak_dist_reg == False:
+                X_open =  np.array([np.repeat(1,tot_len),
+                                    tot_dose_axis_open, tot_dose_axis_open**2,
+                                    np.repeat(1,tot_len)]).T#design_matrix(len(SC_open),tot_dose_axis_open,num_regressors,1,0,0)
+                tot_len = len(tot_dose_axis_grid)
+                X_grid =  np.array([np.repeat(1,tot_len),
+                                    tot_dose_axis_grid, tot_dose_axis_grid**2,
+                                    np.repeat(peak_area_ratio,tot_len)]).T
+            else:
+                X_open =  np.array([np.repeat(1,tot_len),
+                                    tot_dose_axis_open, tot_dose_axis_open**2,
+                                    np.repeat(0,tot_len)]).T#design_matrix(len(SC_open),tot_dose_axis_open,num_regressors,1,0,0)
+                tot_len = len(tot_dose_axis_grid)
+                X_grid =  np.array([np.repeat(1,tot_len),
+                                    tot_dose_axis_grid, tot_dose_axis_grid**2,
+                                    peak_dist]).T
+        elif num_regressors == 4:
+            tot_len = len(np.ravel(pooled_SC_ctrl))
+            X_ctrl = np.array([np.repeat(1,tot_len),np.repeat(0,tot_len),np.repeat(0,tot_len),
+                               np.repeat(0,tot_len),np.repeat(0,tot_len)]).T#design_matrix(len(np.ravel(pooled_SC_ctrl)), tmp, num_regressors, 0,0,0)
+
+            tot_len = len(tot_dose_axis_open)
+            X_open =  np.array([np.repeat(1,tot_len),
+                                tot_dose_axis_open, tot_dose_axis_open**2,
+                                np.repeat(1,tot_len),np.repeat(0,tot_len)]).T#design_matrix(len(SC_open),tot_dose_axis_open,num_regressors,1,0,0)
+            tot_len = len(tot_dose_axis_grid)
+            X_grid =  np.array([np.repeat(1,tot_len),
+                                tot_dose_axis_grid, tot_dose_axis_grid**2,
+                                np.repeat(peak_area_ratio,tot_len),peak_dist]).T                                                           #design_matrix(len(SC_grid),tot_dose_axis_grid, num_regressors, peak_area_ratio, valley_area_ratio, peak_dist)
+
+        print("design matrix shape")
+        print(X_ctrl.shape,X_open.shape,X_grid.shape)
+
+        #print(X_grid[:10])
         #print(np.tile(np.ravel(peak_dist),len(dose)*pooled_SC_ctrl.shape[0]*pooled_SC_ctrl.shape[1]))
 
 
@@ -548,8 +613,8 @@ for i in range(len(kernel_size_mm)):
             SC_train = np.concatenate((SC_ctrl_train, SC_open_train, SC_grid_train, SC_grid_dots_train))
             X_train = np.vstack((X_ctrl_train,X_open_train,X_grid_train, X_grid_dots_train))
 
-            SC_test = np.concatenate((SC_ctrl_test, SC_open_test, SC_grid_test, SC_grid_dots_test))
-            X_test = np.vstack((X_ctrl_test,X_open_test,X_grid_test, X_grid_dots_test))
+            #SC_test = np.concatenate((SC_ctrl_test, SC_open_test, SC_grid_test, SC_grid_dots_test))
+            #X_test = np.vstack((X_ctrl_test,X_open_test,X_grid_test, X_grid_dots_test))
             SC_len = [0,
                      SC_ctrl_len,
                      SC_ctrl_len +  SC_open_len,
@@ -560,73 +625,111 @@ for i in range(len(kernel_size_mm)):
 
         else:
 
-            SC_train = np.concatenate((SC_ctrl_train,SC_open_train , SC_grid_train))
+            SC_train = np.concatenate((SC_ctrl_train,SC_open_train,SC_grid_train))
             X_train = np.vstack((X_ctrl_train, X_open_train, X_grid_train))
-            SC_test = np.concatenate((SC_ctrl_test, SC_open_test, SC_grid_test))
-            X_test = np.vstack((X_ctrl_test, X_open_test, X_grid_test))
+            # SC_test = np.concatenate((SC_ctrl_test, SC_open_test, SC_grid_test))
+            # X_test = np.vstack((X_ctrl_test, X_open_test, X_grid_test))
             SC_len = [0,
                      SC_ctrl_len,
-                     SC_ctrl_len +  SC_open_len,
+                     SC_ctrl_len + SC_open_len,
                      SC_ctrl_len + SC_open_len + SC_grid_len]
             legend = ["Ctrl", "Open", "GRID Stripes"]
 
 
         mean_obs_SC_train = mean_survival(X_train,SC_train)
 
-
-
-        poisson_results = 'GLM_results_{}mm_OPEN&GRID&STRIPES&DOTS_{}regressors.tex'.format(kernel_size_mm[i], num_regressors)
+        poisson_results = 'GLM_results_{}mm_OPEN&STRIPES&DOTS_{}regressors.tex'.format(kernel_size_mm[i], num_regressors)
         model, mean_pred_SC_train, summary = poisson_regression(SC_train,X_train,num_regressors,
                                   r"GRID: Surviving colonies within {:.1f} X {:.1f} $mm^2$ square".format(kernel_size_mm[i], kernel_size_mm[i]),
-                                  'C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\' + poisson_results,
-                                  legend, SC_len, kernel_size_mm[i], False)
-        # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\survival_poisson_OPEN&GRID&STRIPES&DOTS_{}mm_w.g_factor.png".format(kernel_size_mm[i]), dpi = 1200, bbox_inches = "tight")
+                                  'C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\regression results\\' + poisson_results,
+                                  legend, SC_len, kernel_size_mm[i], True)
+        # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\survival_poisson_OPEN&STRIPES&DOTS_{}mm_{}regressors.png".format(kernel_size_mm[i], num_regressors), dpi = 1200)
         plt.close()
 
 
 
-        mean_obs_SC_test = mean_survival(X_test,SC_test)
+        error_eval2 = True
 
-        print(mean_obs_SC_test.shape)
-        predicted_tmp = model.get_prediction(X_test).summary_frame()["mean"]
-        mean_pred_SC_test = mean_survival(X_test, predicted_tmp)
+        if error_eval2:
+            """
+            We test how well the model estimates the mean
+            SC_ctrl_test, SC_open_test, SC_grid_test, SC_grid_dots_test
+            X_ctrl_test,X_open_test,X_grid_test, X_grid_dots_test
+            """
+            method_labels = ["Ctrl", "OPEN", "GRID Stripes", "GRID Dots"]
+            test_data = {"Ctrl":{"SC":SC_ctrl_test,"X":X_ctrl_test}, "OPEN":{"SC":SC_open_test, "X":X_open_test},
+                       "GRID Stripes":{"SC":SC_grid_test,"X":X_grid_test}, "GRID Dots":{"SC":SC_grid_dots_test, "X":X_grid_dots_test}}
+            MSE = np.zeros((2,len(method_labels)))
+            fig,ax = plt.subplots(ncols = 2, figsize = (20,20))
 
+            for idx, method in enumerate(test_data):
+                predicted = model.get_prediction(test_data[method]["X"]).summary_frame()["mean"]
+                true = test_data[method]["SC"]
+                err = (predicted-true)**2
 
-        dose_axis_train = np.linspace(0,np.max(X_train[:,1]), len(mean_obs_SC_train))
-        dose_axis_test = np.linspace(0,np.max(X_test[:,1]),len(mean_obs_SC_test))
+                MSE[0,idx] = np.mean(err)
+                MSE[1,idx] = np.std(err)/np.sqrt(len(err))
+                ax[0].set_ylabel(r"$ (pred_i - true_i)^2 $", fontsize = 15, rotation = 90)
+                ax[0].plot(test_data[method]["X"][:,1], err, "o", markersize = 5, label = method_labels[idx]) #plotting dose vs quadrat of error
+                ax[0].legend()
+                #mean_pred_SC_test = mean_survival(X_test, predicted_tmp)
+            ax[0].set_title("MSE w. Standard error")
+            ax[1].set_title("Squared error vs dose")
+            ax[1].set_xlabel("Dose [Gy]", fontsize = 10)
+            ax[1].set_ylabel(r"$\frac{1}{n} \cdot \sum_{i = 0}^{n} (pred_i - true_i)^2 $", fontsize = 12, rotation = 60)
+            ax[1].bar(method_labels, MSE[0], yerr = MSE[1] , color = colors[:4], alpha = 0.6)
+            # fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\survival_poisson_OPEN&GRID&STRIPES&DOTS_{}mm_{}regressors_MSE.png".format(kernel_size_mm[i], num_regressors), dpi = 1200)
 
-        plt.suptitle("Mean SC observed vs predicted GRID")
-        plt.subplot(121)
-        pred_vs_true_SC(mean_obs_SC_train, mean_pred_SC_train, dose_axis_train, "Train")
-        plt.subplot(122)
-        pred_vs_true_SC(mean_obs_SC_test, mean_pred_SC_test, dose_axis_test, "Test")
-        #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_train_test_{}mm_survival_{}regressors_distance.png".format(kernel_size_mm[i], num_regressors), dpi = 1200)
-
-        plt.close()
-
-        mean_obs_SC_open = mean_survival(X_open_test, SC_open_test)
-        dose_axis_open = np.linspace(0,np.max(X_open_test[:,1]),len(mean_obs_SC_open))
-        mean_obs_SC_open = mean_survival(X_open_test,SC_open_test)
-        predicted_tmp = model.get_prediction(X_open_test).summary_frame()["mean"]
-        mean_pred_SC_open = mean_survival(X_open_test,predicted_tmp)
-
-        #adding dots
-        if grid_dots == True:
-            X_grid_test = np.vstack((X_grid_test, X_grid_dots_test))
-            SC_grid_test = np.concatenate((SC_grid_test,SC_grid_dots_test))
-
-        mean_obs_SC_grid = mean_survival(X_grid_test, SC_grid_test)
-        dose_axis_grid = np.linspace(0,np.max(X_grid_test[:,1]),len(mean_obs_SC_grid))
-        mean_obs_SC_grid = mean_survival(X_grid_test,SC_grid_test)
-        predicted_tmp = model.get_prediction(X_grid_test).summary_frame()["mean"]
-        mean_pred_SC_grid = mean_survival(X_grid_test,predicted_tmp)
+            plt.close()
 
 
 
-        plt.suptitle("Mean SC observed vs predicted")
-        plt.subplot(121)
-        pred_vs_true_SC(mean_obs_SC_open, mean_pred_SC_open, dose_axis_open, "OPEN")
-        plt.subplot(122)
-        pred_vs_true_SC(mean_obs_SC_grid, mean_pred_SC_grid, dose_axis_grid, "GRID")
-        #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_open_grid_{}mm_survival_{}regressors_distance.png".format(kernel_size_mm[i], num_regressors), dpi = 1200)
-        plt.close()
+
+
+        error_eval = False
+        if error_eval:
+            mean_obs_SC_test = mean_survival(X_test,SC_test)
+
+            print(mean_obs_SC_test.shape)
+            predicted_tmp = model.get_prediction(X_test).summary_frame()["mean"]
+            mean_pred_SC_test = mean_survival(X_test, predicted_tmp)
+
+
+            dose_axis_train = np.linspace(0,np.max(X_train[:,1]), len(mean_obs_SC_train))
+            dose_axis_test = np.linspace(0,np.max(X_test[:,1]),len(mean_obs_SC_test))
+
+            plt.suptitle("Mean SC observed vs predicted GRID")
+            plt.subplot(121)
+            pred_vs_true_SC(mean_obs_SC_train, mean_pred_SC_train, dose_axis_train, "Train")
+            plt.subplot(122)
+            pred_vs_true_SC(mean_obs_SC_test, mean_pred_SC_test, dose_axis_test, "Test")
+            #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_train_test_{}mm_survival_{}regressors_distance.png".format(kernel_size_mm[i], num_regressors), dpi = 1200)
+
+            plt.close()
+
+            mean_obs_SC_open = mean_survival(X_open_test, SC_open_test)
+            dose_axis_open = np.linspace(0,np.max(X_open_test[:,1]),len(mean_obs_SC_open))
+            mean_obs_SC_open = mean_survival(X_open_test,SC_open_test)
+            predicted_tmp = model.get_prediction(X_open_test).summary_frame()["mean"]
+            mean_pred_SC_open = mean_survival(X_open_test,predicted_tmp)
+
+            #adding dots
+            if grid_dots == True:
+                X_grid_test = np.vstack((X_grid_test, X_grid_dots_test))
+                SC_grid_test = np.concatenate((SC_grid_test,SC_grid_dots_test))
+
+            mean_obs_SC_grid = mean_survival(X_grid_test, SC_grid_test)
+            dose_axis_grid = np.linspace(0,np.max(X_grid_test[:,1]),len(mean_obs_SC_grid))
+            mean_obs_SC_grid = mean_survival(X_grid_test,SC_grid_test)
+            predicted_tmp = model.get_prediction(X_grid_test).summary_frame()["mean"]
+            mean_pred_SC_grid = mean_survival(X_grid_test,predicted_tmp)
+
+
+
+            plt.suptitle("Mean SC observed vs predicted")
+            plt.subplot(121)
+            pred_vs_true_SC(mean_obs_SC_open, mean_pred_SC_open, dose_axis_open, "OPEN")
+            plt.subplot(122)
+            pred_vs_true_SC(mean_obs_SC_grid, mean_pred_SC_grid, dose_axis_grid, "GRID")
+            #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_open_grid_{}mm_survival_{}regressors_distance.png".format(kernel_size_mm[i], num_regressors), dpi = 1200)
+            plt.close()
