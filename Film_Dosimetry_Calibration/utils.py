@@ -10,7 +10,8 @@ import cv2
 from itertools import repeat
 from scipy import stats
 from scipy.optimize import minimize
-from scipy.stats import t
+from scipy.stats import t,chi2
+from datetime import date
 
 
 def K_means(dose, n_clusters,x,y):
@@ -67,8 +68,9 @@ def fit(model, x, y):
     popt, pcov = curve_fit(model, x, y)
     return popt
 
-def design_matrix(len_respond_variables, x1, num_regressors, x2 = None, x3 = None, x4 = None):
-    if num_regressors == 1:
+def design_matrix(regressors):#(len_respond_variables, x1, num_regressors, x2 = None, x3 = None, x4 = None):
+
+    """if num_regressors == 1:
         X = np.zeros((len_respond_variables, num_regressors + 1))
         X[:,0] = 1
         X[:,1] = x1
@@ -77,24 +79,53 @@ def design_matrix(len_respond_variables, x1, num_regressors, x2 = None, x3 = Non
         X[:,0] = 1
         X[:,1] = x1
         X[:,2] = x1**2
+        if num_regressors == 3:
+            X[:,3] = x2
         if num_regressors == 4:
             X[:,3] = x2
             X[:,4] = x3
         if num_regressors == 5:
-            X[:,5] = x4
-    return X
+            X[:,5] = x4"""
 
-def mean_survival(X, SC):
 
-    dose_categories = np.unique(np.round(np.unique(X[:,1]),2))
+def mean_survival(X, SC, rounding, method):
+    if len(X.shape) < 2:
+        dose_axis = X
+    else:
+        dose_axis = X[:,1]
+    """Rounding of to neares 0.5 demands that we round of to one less decimal first"""
+    rounding -= 1
+    # dose_categories = np.unique(np.round(np.unique(X[:,1]),rounding))
+    """Allocating each dose into the closest category"""
+    allocated_doses = np.round(dose_axis*2, rounding)/2
+    dose_categories = np.unique(allocated_doses)
+    # print(dose_categories)
     mean_SC = []
-    for i in range(0,len(dose_categories)-1):
-        idx = np.argwhere(np.logical_and(dose_categories[i] <= X[:,1], X[:,1] < dose_categories[i+1]))
-        #plt.plot(dose_categories[i], 20-count,"*")
-        if len(idx) != 0:
-             #print(dose_categories[i], dose_categories[i+1])
-             mean_SC.append(np.mean(SC[idx[:,0]]))
-    return np.array(mean_SC)
+    SC_std = []
+    dose_std = []
+    if len(dose_categories)  < 2:
+        mean_SC.append(np.mean(SC))
+        SC_std.append(np.std(SC)/np.sqrt(len(SC)))
+        dose_std.append(np.std(dose_axis))
+    else:
+        for i in range(0,len(dose_categories)):
+
+            #idx = np.argwhere(np.logical_and(dose_categories[i] <= dose_axis, dose_axis < dose_categories[i+1]))
+            idx = np.argwhere(dose_categories[i] == allocated_doses)
+            print("Number of {:.2f} Gy {}".format(dose_categories[i],len(idx)))
+            #print(len(idx), dose_categories[i])
+            #plt.plot(dose_categories[i], 20-count,"*")
+            if len(idx) != 0:
+                dose_std.append(np.std(dose_axis[idx[:,0]]))
+                if dose_categories[i] == 4.5:
+                    print(idx.shape)
+                    print(idx)
+                    print(dose_axis[idx[:,0]])
+                #print(dose_categories[i], dose_categories[i+1])
+                mean_SC.append(np.mean(SC[idx[:,0]]))
+                SC_std.append(np.std(SC[idx[:,0]])/np.sqrt(len(SC[idx[:,0]])))
+    print(np.shape(dose_std))
+    return np.array(mean_SC),np.array(SC_std), dose_categories, dose_std
 
 def poisson_regression(respond_variables, X , num_regressors, plot_title, save_path, legend, SC_lengths, kernel_size, save_results = False):
     #making design matrix. The intercept is 1
@@ -115,20 +146,33 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
     #we interpolate the first parameter to fit a line to the poisson regression model
     #X[:,1] is doses
 
-
+    colors = ["b","g","r","grey","m","y","black","saddlebrown"]
 
     #X_train, X_test, y_train, y_test = train_test_split(X, respond_variables,train_size = 0.8)
     # poisson_training_results = sm.GLM(respond_variables, X, family=sm.families.Poisson()).fit()
     model = sm.GLM(respond_variables, X, family=sm.families.Poisson())
-    poisson_training_results = model.fit()
+    poisson_training_results = model.fit(full_output = True)
+
+    pvalue = 1-chi2.cdf(poisson_training_results.pearson_chi2, X.shape[0] - num_regressors - 1)
+
+
+    print("AIC for {} regressors".format(num_regressors))
+    print(poisson_training_results.aic)
+    print("Log likelihood")
+    print(poisson_training_results.llf)
 
 
 
-    poisson_training_results.aic
+
+
+
 
     if save_results == True:
-        f = open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GLM_results_OPEN&GRID&STRIPES&DOTS_AIC.txt", "a")
-        f.write("\n{}b\t\t\t\t{}\t\t\t\t{:.5f}".format(num_regressors,    kernel_size, poisson_training_results.aic))
+        # f = open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\regression results\\GLM_results_OPEN&STRIPES&DOTS.txt", "a")
+        f = open("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\regression results\\GLM_results_test.txt", "a")
+
+        f.write("\nnum regressors\t\t\tkernel size\t\t\tdate\t\t\tAIC\t\t\tGOF p-value\t# datapoints")
+        f.write("\n{}\t\t\t\t{}\t\t\t\t{}\t\t{:.5f}\t\t{:.3f}\t\t{}".format(num_regressors,  kernel_size, date.today(), poisson_training_results.aic, pvalue, len(respond_variables)))
         f.close()
 
     summary = poisson_training_results.summary()
@@ -171,8 +215,8 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
     """
     predicted_counts = predictions_summary_frame['mean']
 
-    mean_predicted_SC = mean_survival(X, predicted_counts)
-    print("predicted average survival")
+    mean_predicted_SC = mean_survival(X, predicted_counts, 1, None)
+    print("predicted mean survival")
     #print(predicted_SC)
     #we sort the doses to get correct axis
     #dose_axis, correct_counts = zip(*sorted(zip(X_test[:,0], y_test)))
@@ -183,19 +227,36 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
     print(np.sum(SC_lengths))
 
     dose_axis = X[:,1]
-    plt.title(plot_title)
-    plt.xlabel("Dose [Gy]")
-    plt.ylabel("SC")
 
 
+    """2D plotting"""
+    fig,ax = plt.subplots(figsize = (10,8))
+    ax.set_title(plot_title)
+    ax.set_xlabel("Dose [Gy]")
+    ax.set_ylabel("SC")
 
+
+    # ax.plot(X[SC_lengths[3]:SC_lengths[4] - 1,3], respond_variables[SC_lengths[3]:SC_lengths[4] - 1], 'o', label='Observed', color = colors[0], markersize = 3)
+    # ax.plot(X[SC_lengths[3]:SC_lengths[4] - 1,3], predicted_counts[SC_lengths[3]:SC_lengths[4] - 1], "^", label = "Predicted", color = colors[0], markersize = 4)
+    # ax.legend()
+    # plt.show()
     for i in range(len(SC_lengths)-1):
         print(SC_lengths[i], SC_lengths[i+1])
-        plt.plot(dose_axis[SC_lengths[i]:SC_lengths[i+1] - 1], predicted_counts[SC_lengths[i]:SC_lengths[i+1] - 1], "o", label = "Predicted" + legend[i])
-        plt.plot(dose_axis[SC_lengths[i]:SC_lengths[i+1] - 1], respond_variables[SC_lengths[i]:SC_lengths[i+1] - 1], 'o', label='Observed' + legend[i])
-    plt.legend()
+        ax.plot(dose_axis[SC_lengths[i]:SC_lengths[i+1] - 1], respond_variables[SC_lengths[i]:SC_lengths[i+1] - 1], 'o', label='Observed' + legend[i], color = colors[i], markersize = 3)
+        ax.plot(dose_axis[SC_lengths[i]:SC_lengths[i+1] - 1], predicted_counts[SC_lengths[i]:SC_lengths[i+1] - 1], "^", label = "Predicted" + legend[i], color = colors[i], markersize = 4)
+    ax.legend(fontsize = 14, markerscale = 2)
 
+    """
+    3D plotting
+    """
 
+    # from mpl_toolkits import mplot3d
+    # fig = plt.figure()
+    # ax = plt.axes(projection='3d')
+    #Z = respond_variables[SC_lengths[3]:SC_lengths[4]-1]
+
+    #ax.scatter3D(X[SC_lengths[3]:SC_lengths[4]-1,1], X[SC_lengths[3]:SC_lengths[4]-1,3], Z, c=Z, cmap='Greens');
+    #plt.show()
 
     # dose_axis = X[:,1]
     # plt.plot(dose_axis, predicted_counts, "bo", label=fit_label)
@@ -289,6 +350,18 @@ def dose_profile2(pixel_height,dose_matrix):
 
     return dose_array
 
+def dose_fit_error(OD, dOD,dparam,param):
+    da,db,dn = np.sqrt(dparam)
+    a,b,n = param
+
+    print(da,db,dn,a,b,n)
+    return np.sqrt(OD**2 * da**2 + (OD**n)**2 * db**2 + (a + b*n * OD**(n-1))**2 * dOD**2 + \
+                  (b*np.log(OD)*OD**n)**2 * dn**2)
+def corrfunc(x, y, **kws):
+    r, _ = stats.pearsonr(x, y)
+    ax = plt.gca()
+    ax.annotate("r = {:.2f}".format(r),
+                xy=(.1, .9), xycoords=ax.transAxes)
 
 if __name__ == "__main__":
     import skimage.transform as tf

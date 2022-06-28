@@ -58,6 +58,10 @@ class film_calibration:
             filenames = {}
             p_values = np.zeros(len(image_files)//4)
             maxdiff = 0
+            #for plotting percentage difference for each film
+            film_axis = np.arange(1,len(image_files)//4 + 1,1)
+            print(film_axis)
+            fig, ax = plt.subplots(figsize = (10,5))
             for i, filename in enumerate(image_files):
                 #print(filename)
                 tmp = cv2.imread(os.path.join(self.image_folder,filename), -1)
@@ -69,7 +73,20 @@ class film_calibration:
                 test_images.append(gray_tmp)
                 counter += 1
                 if counter % 4 == 0:
-                    f = f_oneway(np.ravel(test_images[0]),np.ravel(test_images[1]),np.ravel(test_images[2]),np.ravel(test_images[3]))
+                    diff = np.zeros(6)
+                    mean_intensity = np.zeros(6)
+                    #finding difference between mean pixel value of all scans
+                    for j,img in enumerate(list(combinations([0,1,2,3],2))):
+                        diff[j] = np.abs(np.mean(test_images[img[0]]) - np.mean(test_images[img[1]]))
+                        mean_intensity[j] = (np.mean(test_images[img[0]]) + np.mean(test_images[img[1]]))/2
+                        if diff[j] > maxdiff:
+                            maxdiff = diff[j]
+                            maxdiff_img = filename
+                            max_mean_intensity = (np.mean(test_images[img[0]]) + np.mean(test_images[img[1]]))/2
+                    ax.plot(film_axis[i//4], np.mean(diff/mean_intensity)*100, "*")
+                    test_images = []
+                    #ANOVA
+                    """f = f_oneway(np.ravel(test_images[0]),np.ravel(test_images[1]),np.ravel(test_images[2]),np.ravel(test_images[3]))
                     counter == 1
                     #print("film {}      p-value {:.5}".format(filename.split("_")[4], f[1]))
 
@@ -95,13 +112,18 @@ class film_calibration:
                         plt.plot(np.ravel(test_images[2]),"*")
                         plt.subplot(2,3,5)
                         plt.plot(np.ravel(test_images[3]),"*")
-                        plt.close()
-
-                    test_images = []
+                        plt.close()"""
+            ax.set_title("Mean RPD between 4 scans for all images")
+            ax.set_xlabel("# Film")
+            ax.set_ylabel("RPD", fontsize = 14,labelpad = 40, rotation =0)
+            ax.tick_params(axis='both', which='major', labelsize=7)
+            fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\percentage_diff_scans.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 300)
+            plt.show()
+                    # test_images = []
                     #print("---------------")
 
             print(" max percentage difference")
-            #print(maxdiff/mean_intensity)
+            print(maxdiff/max_mean_intensity)
             fig, ax = plt.subplots(figsize = (12,12))
             ax.plot(p_values, "*")
             ax.set_xlabel("a.u.")
@@ -375,10 +397,10 @@ class film_calibration:
                         print(BLUE_chan_reg.shape)
                         print("blue chan reg\n\n\n\n")
                         if self.registration_save:
-                            np.save(self.reg_path + "\\BLUE_grid_{}".format(image_type), BLUE_chan)
-                            np.save(self.reg_path + "\\GREEN_grid_{}".format(image_type), GREEN_chan)
-                            np.save(self.reg_path + "\\RED_grid_{}".format(image_type), RED_chan)
-                            np.save(self.reg_path + "\\GREY_grid_{}".format(image_type), GREY_chan)
+                            np.save(self.reg_path + "\\BLUE_grid_{}_2".format(image_type), BLUE_chan) #_2 because I was afraid to remove the previous registration
+                            np.save(self.reg_path + "\\GREEN_grid_{}_2".format(image_type), GREEN_chan)
+                            np.save(self.reg_path + "\\RED_grid_{}_2".format(image_type), RED_chan)
+                            np.save(self.reg_path + "\\GREY_grid_{}_2".format(image_type), GREY_chan)
                     else:
                         BLUE_chan_reg = np.load(self.reg_path + "\\BLUE_calib_{}.npy".format(image_type))
                         GREEN_chan_reg = np.load(self.reg_path + "\\GREEN_calib_{}.npy".format(image_type))
@@ -439,7 +461,7 @@ class film_calibration:
             #return RED_chan_reg[:num_images, 50:650,210:260]
 
     def netOD_calculation(self, background_images,control_images,images, films_per_dose, plot = False, plot_title = None):
-        #print(images.shape)
+        channel = "BLUE"
         """
         This is where the netOD per irradiated film is measured. For each dosepoint
         [0.1,0.2,0.5,1,2,5,10] we have 8 dosimetry films.
@@ -479,8 +501,23 @@ class film_calibration:
         #stderr_bckg = np.sqrt(np.sum(np.var(ROI_bckg, axis = 0)))/background_images.shape[0]#(background_images.shape[1]*background_images.shape[2])))  #combining standard error of all films
         #stderr_ctrl = np.sqrt(np.sum(np.var(ROI_ctrl, axis = 0)))/control_images.shape[0]#(control_images.shape[1]*control_images.shape[2])))
 
-        sigma_bckg_PV = np.sqrt(np.sum(sigma_bckg_PV**2))/len(background_images) #mean standard error of background image
-        sigma_ctrl_PV = np.sqrt(np.sum(sigma_ctrl_PV**2))/len(control_images)
+        # sigma_bckg_PV = np.sqrt(np.sum(sigma_bckg_PV**2)/len(background_images)) #mean standard error of background image
+        # sigma_ctrl_PV = np.sqrt(np.sum(sigma_ctrl_PV**2)/len(control_images))
+
+        # mean_sigma_bckg_PV = np.sqrt(len(sigma_bckg_PV)/(np.sum(1/sigma_bckg_PV**2)))  #from devic
+        # mean_sigma_ctrl_PV = np.sqrt(len(sigma_ctrl_PV)/(np.sum(1/sigma_ctrl_PV**2)))
+
+        mean_sigma_bckg_PV = 1/np.sqrt(np.sum(1/sigma_bckg_PV**2))  #from devic
+        mean_sigma_ctrl_PV = 1/np.sqrt(np.sum(1/sigma_ctrl_PV**2))
+
+
+        # tmp1 = np.sum(PV_bckg_weight*mean_bckg_PV**2)/np.sum(PV_bckg_weight) - PV_bckg**2
+        # tmp2 = np.sum(PV_bckg_weight**2)/((np.sum(PV_bckg_weight))**2 - np.sum(PV_bckg_weight**2))
+        # mean_sigma_bckg_PV = np.sqrt(tmp1*tmp2)
+
+        print(mean_sigma_bckg_PV, mean_sigma_ctrl_PV, len(sigma_bckg_PV), len(sigma_ctrl_PV), PV_bckg, PV_ctrl)
+        # print(sigma_bckg_PV, sigma_ctrl_PV)
+
 
         # sigma_bckg_PV = np.std(mean_bckg_PV)/np.sqrt(len(background_images))
         # sigma_ctrl_PV = np.std(mean_ctrl_PV)/np.sqrt(len(control_images))
@@ -534,13 +571,22 @@ class film_calibration:
 
                 #print(mean_img_PV,i)
                 #sigma_img_PV[idx] = np.std(images[i])
-                netOD[i] = max([0,np.log10((PV_ctrl-PV_bckg)/(np.mean(PV_img[i])-PV_bckg))])
+                tmp = (PV_ctrl-PV_bckg)/(PV_img[i]-PV_bckg)
+
+
+                netOD[i] = max([0,np.log10(tmp)])
+                """if channel == "BLUE":
+                    print((PV_ctrl-PV_bckg)/(PV_img[i]-PV_bckg))
+                    if netOD[i] == 0:
+                        print("---------")
+                        print(PV_img[i], PV_bckg)
+                        print("---------")"""
 
 
             plt.close()
             print("error shapes")
-            print(sigma_ctrl_PV.shape,sigma_bckg_PV.shape,sigma_img_PV.shape)
-            return netOD, PV_img, sigma_ctrl_PV, sigma_bckg_PV, sigma_img_PV, PV_ctrl, PV_bckg
+            print(sigma_ctrl_PV.shape,mean_sigma_bckg_PV.shape,sigma_img_PV.shape)
+            return netOD, PV_img, mean_sigma_ctrl_PV, mean_sigma_bckg_PV, sigma_img_PV, PV_ctrl, PV_bckg
             #return netOD, PV_img, sigma_cont_PV, sigma_bckg_PV, sigma_img_PV, PV_ctrl, PV_bckg
 
         else:
@@ -577,7 +623,7 @@ class film_calibration:
             # plt.imshow(netOD[0])
             # plt.show()
             print("\n netOD calculation is complete")
-            return netOD, PV_img, sigma_ctrl_PV, sigma_bckg_PV, sigma_img_PV, PV_ctrl, PV_bckg
+            return netOD, PV_img, mean_sigma_ctrl_PV, mean_sigma_bckg_PV, sigma_img_PV, PV_ctrl, PV_bckg
 
 
     def calibrate(self, ROI_size, films_per_dose, channel = "RED"):
@@ -911,7 +957,7 @@ class film_calibration:
         #self.std_err = np.zeros(self.netOD.shape[0])
 
         if model_type == 1:
-            #x0 = np.array([0.5,0.5,0.5])
+            # x0 = np.array([0.5,0.5,0.5])
             x0 = np.array([1,1,1])
         if model_type == 2:
             x0 = np.array([-1,1,1])
@@ -925,11 +971,18 @@ class film_calibration:
             If OD != None then no low or high OD is found
             """
             print(np.shape(OD),np.shape(doses))
+
             fit = least_squares(self.RSS_func, x0, args = (OD,doses,model_type), method = "lm")
             self.fitting_param = fit.x
-            self.residual = fit.fun
+            k = 3
+            df = len(OD)- k - 1
+            hessian_approx_inv = np.linalg.inv(fit.jac.T.dot(fit.jac)) #follows H^-1 approx J^TJ
+            std_err_res = np.sqrt(np.sum(fit.fun**2)/df)**2
+            self.param_cov = std_err_res * hessian_approx_inv
 
-            return self.fitting_param, self.residual
+
+
+            return self.fitting_param, np.diag(self.param_cov)
 
         else:
             """
@@ -1028,7 +1081,7 @@ class film_calibration:
 
                 #forcing 10 Gy to be included
                 high_response[1] = True
-                high_response[0]  =True
+                high_response[0]  = True
 
 
 
@@ -1085,9 +1138,6 @@ class film_calibration:
             print(np.sum(fit_low.fun**2), np.sum(fit_high.fun**2))
             print(df_low,df_high)
 
-            print("Optimality")
-            print(fit_low.optimality)
-
             print(np.sqrt(np.sum(fit_low.fun**2)/(len(fit_low.fun)-1))) #MSE
 
             #self.residual_low = fit_low.cost
@@ -1116,19 +1166,3 @@ class film_calibration:
 
 
         print("\n fitting is complete")
-
-
-
-
-if __name__ == "__main__":
-    folder = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Calibration"
-    background_folder = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Background"
-    test_image = "EBT3_Calib_310821_Xray220kV_00Gy1_001.tif"
-    film_calib = film_calibration(folder, test_image)
-
-    images = film_calib.image_acquisition()
-
-    films_per_dose = 8
-    ROI_size = 2 #mm
-
-    film_calib.calibrate(ROI_size, films_per_dose)
