@@ -3,9 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from scipy.stats import f, ttest_ind_from_stats
-from kernel_density_estimation import kde
 import seaborn as sb
-from LQ_model import logLQ, fit, logLQ
+from LQ_model import logLQ, fit
 import cv2
 import torch.nn as nn
 import torch
@@ -13,13 +12,9 @@ import cv2
 import skimage.transform as tf
 from pystackreg import StackReg
 from crop_pad import crop, pad
-import sys
 from plotting_functions_survival import survival_viz
 import pickle
 from utils import dose_profile2
-"""
-todo: make cropping edges a variable
-"""
 
 
 class survival_analysis:
@@ -152,6 +147,10 @@ class survival_analysis:
         #converting to float for rescaling
         self.flask_image = self.flask_template.astype(float)
 
+        print(self.flask_image.shape)
+
+
+
         #Creating empty matrix to be filled with cell colony centroids
         self.colony_map = np.zeros((len(self.time), len(self.dose), len(self.position),  self.flask_image.shape[0], self.flask_image.shape[1]))
 
@@ -223,25 +222,25 @@ class survival_analysis:
             mean_dose_map = np.load(self.dose_map_path)
 
             # #checking consequences of upscaling
-            plt.subplot(121)
-            image_height1 =  np.arange(0,600-35,1)             #np.arange(0,len(mean_dose_map),1)
-            plt.plot(image_height1, dose_profile2(image_height1,mean_dose_map[35:600,260:290]))
-            tmp1 = np.abs(dose_profile2(image_height1,mean_dose_map[35:600,260:290]) - 5)/5                                      #np.sqrt((dose_profile2(image_height1,mean_dose_map[35:600,260:290]) - 5)**2)
-            MSE = np.mean(tmp1)
+            # plt.subplot(121)
+            # image_height1 =  np.arange(0,600-35,1)             #np.arange(0,len(mean_dose_map),1)
+            # plt.plot(image_height1, dose_profile2(image_height1,mean_dose_map[35:600,260:290]))
+            # tmp1 = np.abs(dose_profile2(image_height1,mean_dose_map[35:600,260:290]) - 5)/5                                      #np.sqrt((dose_profile2(image_height1,mean_dose_map[35:600,260:290]) - 5)**2)
+            # MSE = np.mean(tmp1)
             #
             dose_map_scaled = tf.rescale(mean_dose_map, 4, order = 3)
-            plt.subplot(122)
-            image_height2 = np.arange(0,2400-140,1)    #np.arange(0,len(dose_map_scaled),1)
-            plt.plot(image_height2, dose_profile2(image_height2,dose_map_scaled[35*4:600*4,260*4:290*4]))
-
-            tmp2 = np.abs(dose_profile2(image_height2,dose_map_scaled[35*4:600*4,260*4:290*4]) - 5)/5                                            #np.sqrt((dose_profile2(image_height2,dose_map_scaled[35*4:600*4,260*4:290*4]) - 5)**2)
-            MSE = np.mean(tmp2)
-            statistic, p_value = ttest_ind_from_stats(mean1=np.mean(tmp1), std1=np.std(tmp1), nobs1=len(tmp1), \
-                               mean2=np.mean(tmp2), std2=np.std(tmp2), nobs2=len(tmp2), \
-                               equal_var=False)
-            print("t-statistic      p-value")
-            print(statistic,p_value)
-            plt.show()
+            # plt.subplot(122)
+            # image_height2 = np.arange(0,2400-140,1)    #np.arange(0,len(dose_map_scaled),1)
+            # plt.plot(image_height2, dose_profile2(image_height2,dose_map_scaled[35*4:600*4,260*4:290*4]))
+            #
+            # tmp2 = np.abs(dose_profile2(image_height2,dose_map_scaled[35*4:600*4,260*4:290*4]) - 5)/5                                            #np.sqrt((dose_profile2(image_height2,dose_map_scaled[35*4:600*4,260*4:290*4]) - 5)**2)
+            # MSE = np.mean(tmp2)
+            # statistic, p_value = ttest_ind_from_stats(mean1=np.mean(tmp1), std1=np.std(tmp1), nobs1=len(tmp1), \
+            #                    mean2=np.mean(tmp2), std2=np.std(tmp2), nobs2=len(tmp2), \
+            #                    equal_var=False)
+            # print("t-statistic      p-value")
+            # print(statistic,p_value)
+            # plt.show()
 
             dose_map_pad = pad(dose_map_scaled, shape_diff)
 
@@ -250,6 +249,7 @@ class survival_analysis:
 
             sr = StackReg(StackReg.RIGID_BODY)
             tmat = sr.register(self.flask_image, film_image_pad)
+
             self.film_image_reg = tf.warp(film_image_pad,tmat,order = 3)
             self.dose_map_reg = tf.warp(dose_map_pad, tmat, order = 3)
 
@@ -275,6 +275,15 @@ class survival_analysis:
             plt.imshow(self.flask_image, alpha = 0.7)
 
             plt.close()
+
+            """Mean dose map plot"""
+            fig,ax = plt.subplots(figsize = (9,8))
+            dose = ax.imshow(self.dose_map_reg, cmap = "viridis")
+            plt.tight_layout()
+            cbar = fig.colorbar(dose)
+            cbar.ax.tick_params(labelsize=14)
+            # fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\mean_film_dose_map_{}.png".format(self.mode), dpi = 300)
+            plt.close()
             #this is used for dose profiles and 1D survival analysis
             #np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_film_dose_map_reg_{}.npy".format(self.mode), self.dose_map_reg)
             #this is used for 2D analysis
@@ -286,15 +295,19 @@ class survival_analysis:
 
         elif "GRID" in self.mode.split(" "):
             if self.mode == "GRID Stripes":
-                seg_mask = np.asarray(pd.read_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\18112019\\GRID Stripes\\A549-1811-05-gridS-A-SegMask.csv")).astype(float)
+                seg_mask = np.asarray(pd.read_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 23.11.2021\\18112019\\GRID Stripes\\A549-1811-05-gridS-A-SegMask.csv")).astype(float)
                 tmp_image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Measurements\\Grid_Stripes\\EBT3_Stripes_310821_Xray220kV_5Gy1_001.tif", -1)
+                original_film =  cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Measurements\\Grid_Stripes\\EBT3_Stripes_310821_Xray220kV_5Gy1_001.tif")
+                original_film_rgb = cv2.cvtColor(original_film,cv2.COLOR_BGR2RGB)
             elif self.mode == "GRID Dots":
-                seg_mask = np.asarray(pd.read_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\20112019\\GRID Dots\\A549-2011-10-gridC-A-SegMask.csv")).astype(float)
+                seg_mask = np.asarray(pd.read_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 23.11.2021\\20112019\\GRID Dots\\A549-2011-10-gridC-A-SegMask.csv")).astype(float)
                 idx1 = seg_mask == 1
                 idx0 = seg_mask == 0
                 seg_mask[idx1] = 0
                 seg_mask[idx0] = 1
                 tmp_image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\Measurements\\EBT3_Holes_131021_Xray220kV_5Gy1_001.tif", -1)
+                original_film = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\Measurements\\EBT3_Holes_131021_Xray220kV_5Gy1_001.tif")
+                original_film_rgb = cv2.cvtColor(original_film,cv2.COLOR_BGR2RGB)
 
             """
             All GRID Dots images are registered to the first image in the folder.
@@ -315,15 +328,12 @@ class survival_analysis:
             film_image = tf.rescale(film_image, 4)
 
             if self.mode == "GRID Stripes":
-                plt.subplot(121)
-                plt.imshow(film_image)
+
                 #converting the EBT3 image to a mask.
                 film_image[film_image >= 4e4] = 0
                 film_image[np.logical_and(0 < film_image, film_image < 2.8e4)] = 0
                 film_image[np.logical_and(2.8e4 < film_image, film_image < 4e4)] = 1
-                plt.subplot(122)
-                plt.imshow(film_image)
-                plt.close()
+
 
             elif self.mode == "GRID Dots":
                 film_image[np.logical_and(0 < film_image, film_image < 2.5e4 )] = 1
@@ -345,6 +355,10 @@ class survival_analysis:
 
             mean_dose_map = np.load(self.dose_map_path)
 
+            # plt.imshow(mean_dose_map, cmap = "viridis")
+            # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\dose_map_cell_flask_reg.png", dpi = 1200)
+            # plt.show()
+
             print(mean_dose_map.shape)
 
 
@@ -352,8 +366,19 @@ class survival_analysis:
 
             self.dose_map_pad = pad(dose_map_scaled, shape_diff)
 
+
             sr = StackReg(StackReg.RIGID_BODY)
             tmat = sr.register(seg_mask, film_image_pad.astype(float))
+            if self.mode == "GRID Stripes":
+                print(tmat)
+                tmat[1,2]  -= 50
+            elif self.mode == "GRID Dots":
+                """
+                Tuning not necessary for hole GRID
+                """
+                tmat[1,2] -= 30
+                #tmat[0,2] -= 30
+                print(tmat)
             self.film_image_reg = tf.warp(film_image_pad,tmat,order = 3)
             self.dose_map_reg = tf.warp(self.dose_map_pad,tmat,order = 3)
 
@@ -362,7 +387,7 @@ class survival_analysis:
             # self.cropping_limits[0]:self.cropping_limits[1],self.cropping_limits[2]:self.cropping_limits[3]
 
 
-            plt.subplot(121)
+            """plt.subplot(121)
             plt.title("Dosimetry Film")
             plt.imshow(film_image_pad, cmap = "hot")
 
@@ -370,19 +395,52 @@ class survival_analysis:
             plt.title("Segmentation mask")
             plt.imshow(seg_mask,cmap = "hot")
             #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\image_processing_registration.png",bbox_inches = "tight", pad_inches = 0.2,dpi = 1200)
+            plt.show()"""
+
+            fig, ax = plt.subplots(nrows = 2, ncols = 2, figsize = (9,7))
+            ax = ax.flatten()
+            ax[0].set_title("Original film")
+            ax[0].imshow(original_film_rgb)
+            ax[0].grid(False)
+            ax[0].set_xticklabels([])
+            ax[0].set_yticklabels([])
+
+            ax[1].set_title("Binary dose film")
+            ax[1].imshow(film_image_pad)
+            ax[1].grid(False)
+            ax[1].set_xticklabels([])
+            ax[1].set_yticklabels([])
+            ax[2].set_title("Dose map and segmentation mask\nbefore registration", fontsize = 12)
+            ax[2].imshow(self.dose_map_pad)
+            ax[2].imshow(seg_mask, alpha = 0.8, cmap = "viridis")
+            ax[2].grid(False)
+            ax[2].set_xticklabels([])
+            ax[2].set_yticklabels([])
+            ax[3].set_title("Dose map and segmentation mask\nafter registration")
+            ax[3].imshow(self.dose_map_reg,cmap = "hot")
+            #ax[2].imshow(self.film_image_reg)
+            ax[3].imshow(seg_mask,alpha = 0.8, cmap = "viridis")
+            ax[3].grid(False)
+            ax[3].set_xticklabels([])
+            ax[3].set_yticklabels([])
+            plt.tight_layout()
+            fig.subplots_adjust(right = .7)
+            """if self.mode == "GRID Stripes":
+                fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\registration_striped_grid.png", dpi = 300)
+            elif self.mode == "GRID Dots":
+                fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\131021\\registration_dotted_grid.png", dpi = 300)"""
             plt.close()
 
-
-            plt.subplot(131)
-            plt.imshow(film_image_pad, cmap = "hot")
-            plt.subplot(132)
-            plt.imshow(film_image_pad, cmap = "hot")
-            plt.imshow(seg_mask, alpha = 0.9, cmap = "viridis")
-            plt.subplot(133)
-            plt.imshow(self.dose_map_reg,cmap = "hot")
-            #plt.imshow(self.dose_map_reg[225:2100,405:1950],cmap = "hot")
-            plt.imshow(seg_mask,alpha = 0.8, cmap = "viridis")
-
+            """Mean dose map plot"""
+            fig,ax = plt.subplots(figsize = (9,8))
+            dose = ax.imshow(self.dose_map_reg, cmap = "viridis")
+            plt.tight_layout()
+            cbar = fig.colorbar(dose)
+            cbar.ax.tick_params(labelsize=14)
+            # if self.mode == "GRID Stripes":
+            #     fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\mean_film_dose_map_{}.png".format(self.mode), dpi = 300)
+            # else:
+            #     fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\131021\\mean_film_dose_map_{}.png".format(self.mode), dpi = 300)
             plt.close()
 
 
@@ -439,15 +497,17 @@ class survival_analysis:
             Visualisation
             """
             print(self.kernel_size)
-            survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = True)
-            #plt.savefig(survival_viz_path,dpi = 1200, pad_inches = 1)
-            plt.close()
+            # survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = True)
+            # survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = True)
+
+            # plt.savefig(survival_viz_path,dpi = 300, pad_inches = 1)
+            # plt.show()
             plt.title("registered dose map")
             plt.imshow(self.dose_map_reg[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]])
             plt.close()
         elif self.mode == "GRID Dots":
-            survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = False)
-            #plt.savefig(survival_viz_path,dpi = 1200, pad_inches = 1)
+            # survival_viz(self.colony_map, self.kernel_size, self.dose_map_reg, self.cropping_limits, Stripes = False)
+            # plt.savefig(survival_viz_path,dpi = 300, pad_inches = 1)
             plt.close()
             plt.imshow(self.dose_map_reg[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]])
             plt.close()
@@ -498,83 +558,6 @@ class survival_analysis:
         else:
             return self.count_mat
 
-    def logistic(self, dose):
-        """
-        This function does average pooling using a 3x3 kernel with stride 3, to get
-        the average dose within 3x3 kernels in the dose map. This way we know which dose the pooled survival
-        counts (count mat) recieved, and we can plot them together.
-        """
-        #if a colony has been counted, set it to one.
-        avg_pooling = nn.AvgPool2d(kernel_size = self.kernel_size, stride = self.kernel_size)
-        self.pooled_dose = avg_pooling(torch.tensor(self.dose_map).unsqueeze(0))[0]
-
-
-        if dose == 2:
-            dose_map = np.ravel(self.pooled_dose)*2/5
-            survival = np.reshape(self.count_mat[:,0,:], (self.count_mat.shape[0],
-                                  self.count_mat.shape[2], self.count_mat.shape[3] * self.count_mat.shape[4]))
-        elif dose == 5:
-            dose_map = np.ravel(self.pooled_dose)
-            survival = np.reshape(self.count_mat[:,1,:], (self.count_mat.shape[0],
-                                  self.count_mat.shape[2], self.count_mat.shape[3] * self.count_mat.shape[4]))
-        elif dose == 10:
-            dose_map = np.ravel(self.pooled_dose)*2
-            survival = np.reshape(self.count_mat[:,2,:], (self.count_mat.shape[0],
-                                  self.count_mat.shape[2], self.count_mat.shape[3] * self.count_mat.shape[4]))
-
-        print(self.pooled_dose)
-        """
-        Out EBT3 films recieved nominal 5 Gy dose, we scaled them down to 2Gy
-        for survival analysis of cell flasks receiving 2 Gy.
-        """
-
-        print("dose shape")
-        print(dose_map.shape)
-
-        """
-        count_mat[:,0] gives results from experiments performed on 1811 and 2011 in 2019.
-        Which has shape (2,4,x,y) 4 positions, and image with shape (x,y). We want to find the mean over all
-        positions and all experiments. Therefore we average over axis 0 and 1.
-        """
-
-
-        print("survival 2 Gy shape")
-        print(survival.shape)
-
-
-        """IQR_open = np.quantile(np.sort(dose_map),0.75) - np.quantile(np.sort(dose_map), 0.25)
-        outlier_idx = np.argwhere(dose_map > np.quantile(dose_map, 0.25) + 1.5*IQR_open)
-        no_outlier_dose = np.delete(dose_map,outlier_idx[:,0])
-
-        no_outlier_survival = np.zeros((survival.shape[0], survival.shape[1], survival.shape[2] - len(outlier_idx)))
-        for i in range(survival.shape[0]):
-            for j in range(survival.shape[1]):
-                no_outlier_survival[i,j] = np.delete(survival[i,j], outlier_idx[:,0])
-
-        print("survival w.o. outliers in dose")
-        print(no_outlier_survival.shape)
-        print("dose w.o. outliers")
-        print(no_outlier_dose.shape)
-
-        sorted(list(zip(no_outlier_dose, no_outlier_survival)))"""
-
-        idx = 0
-        for i in range(survival.shape[0]):
-            for j in range(survival.shape[1]):
-                #plt.subplot(121)
-                plt.title("{} {}".format(self.time[i], self.position[j]))
-                plt.scatter(dose_map, np.ravel(survival[i,j]))
-                #plt.subplot(122)
-                #plt.bar(no_outlier_dose, no_outlier_survival[i,j], facecolor = '#2ab0ff', edgecolor='#169acf', linewidth=0.5)
-                #plt.scatter(no_outlier_dose,no_outlier_survival[i,j])
-                idx += 1
-                plt.show()
-
-
-
-
-        pass
-
 
     def SC(self, dose):
 
@@ -613,9 +596,13 @@ class survival_analysis:
         #dose_map = self.dose_map_reg[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]]
         #dose_map = self.dose_map_pad[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]]
 
+        #dose_map = self.dose_map_reg[200:2700, 500:1500]
+
+        print(self.dose_map_reg.shape)
 
 
         dose_map = self.dose_map_reg[cropping_limits[0]:cropping_limits[1], cropping_limits[2]:cropping_limits[3]]
+        # dose_map = self.dose_map_reg[10:700,10:500]
 
 
         #plt.imshow(self.dose_map_reg, alpha = 0.8)
@@ -652,10 +639,10 @@ class survival_analysis:
         """
         Identifying dose that is 80 percent of maximum
         """
-        d80 = np.max(dose_map)*0.85  #dividing by 0.8 because OD is opposite to dose
-        #d80_idx  = np.abs(dose_map-d80).argmin()
+        d85 = np.max(dose_map)*0.85  #dividing by 0.8 because OD is opposite to dose
+        #d85_idx  = np.abs(dose_map-d85).argmin()
 
-        #d80 = dose_map[d80_idx//dose_map.shape[1], d80_idx%dose_map.shape[1]]
+        #d85 = dose_map[d85_idx//dose_map.shape[1], d85_idx%dose_map.shape[1]]
 
 
         #d95 = mean_dose_map[d95_idx//mean_dose_map.shape[1], d95_idx%mean_dose_map.shape[1]]
@@ -665,8 +652,7 @@ class survival_analysis:
         """
         print(len(x), len(y))
 
-        isodose = ax.contour(y, x, dose_map, levels = [d80], colors  = "blue") #y represents
-
+        isodose = ax.contour(y, x, dose_map, levels = [d85], colors  = "blue") #y represents
 
         """
         Getting index values from contour lines to find their position
@@ -739,7 +725,7 @@ class survival_analysis:
                 plt.scatter(j + self.kernel_size/2 - self.kernel_size//2, i + self.kernel_size/2-self.kernel_size//2 ,s = 5)
 
                 #if the quadrat is located within a peak, then the distance is 0
-                if dose_map[i,j] > d80: #assumes only 5 Gy irradiated films
+                if dose_map[i,j] > d85: #assumes only 5 Gy irradiated films
                     if self.kernel_size%2 == 0:
                         dist[i//self.kernel_size, j//self.kernel_size] = 0
                     else:
@@ -761,7 +747,7 @@ class survival_analysis:
 
         plt.imshow(self.dose_map_reg[self.cropping_limits[0]:self.cropping_limits[1], self.cropping_limits[2]:self.cropping_limits[3]], alpha = 0.8, cmap = "hot")
 
-        print(dist[1])
+
         #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\nearest_peak_{}mm.png".format(int(self.kernel_size/47)), bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
         plt.close()
         """if self.kernel_size == 188:
@@ -770,157 +756,3 @@ class survival_analysis:
 
 
     #def Quadrat_anal(self, Colony_mask_shape, Colony_coor, kernel_size = 3):
-
-
-
-
-
-if __name__ == "__main__":
-    folder = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021"
-    time = ["03012020", "17122020", "18112019", "20112019"]
-    mode = ["Control", "Open"]
-    dose = ["02", "05"]
-    template_file_control =  "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\18112019\\Control\\A549-1811-K1-TemplateMask.csv"
-    template_file_open = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 15.11.2021\\18112019\\Open\\A549-1811-02-open-A-TemplateMask.csv"
-    mean_dose_open = np.loadtxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\mean_film_dose_map\\mean_dose_open.npy")
-
-
-    """
-    18112019 and 20112019 data is much closer, compared with 1712202 and 03012020.
-    We therefore combine these data to find alpha beta.
-    """
-
-    time = np.delete(time, [0,1])
-
-
-    """
-    Finding the number of counted colonies for control (0Gy) and open field
-    experiments (2Gy and 5Gy)
-    """
-    survival_control = survival_analysis(folder, time, mode[0], template_file_control, dose = None)
-    ColonyData_control, data_control = survival_control.data_acquisition()
-
-    survival_open = survival_analysis(folder, time, mode[1], template_file_open, dose = dose)
-    ColonyData_open, data_open  = survival_open.data_acquisition()
-
-    #finding the normalization value
-    max_count = np.max(data_control)
-
-    data_open/= max_count
-    data_control/= max_count  #normalizing counting to max number in ctrl
-
-    dose_0 = [0 for i in range(len(np.ravel(data_control)))]
-
-    """
-    Identifying outliers in the data, and removing them
-    """
-    data_open_2GY = np.ravel(data_open[:,0,:])
-
-    IQR_open = np.quantile(data_open_2GY,0.75) - np.quantile(data_open_2GY, 0.25)
-
-    outlier_idx = np.argwhere(data_open_2GY < np.quantile(data_open_2GY, 0.25) - 1.5*IQR_open)
-
-
-    no_outlier = np.delete(data_open_2GY,outlier_idx[:,0])
-
-
-
-    #sb.boxplot(data_open[:,0,:])
-    #sb.scatterplot(data_open[:,0,:])
-    #plt.show()
-
-    dose_2 = [2 for i in range(len(no_outlier))]
-    dose_5 = [5 for i in range(len(np.ravel(data_open[:,1,:])))]
-
-    """
-    Combining all doses, to match the count-datapoints
-    """
-    doses = np.append(dose_0, np.append(dose_2,dose_5))
-
-    """
-    Combining all counting data for fit.
-    """
-    combined_count = np.log(np.append(np.ravel(data_control), np.append(no_outlier, np.ravel(data_open[:,1,:]))))
-
-
-    fitting_param = fit(logLQ, doses, combined_count)
-
-
-    plt.xlabel("dose [Gy]")
-    plt.ylabel(r"$SF_{log}$")
-
-    plt.plot(dose_2, np.log(no_outlier),"*", color = "magenta")
-    plt.plot(dose_5, np.log(np.ravel(data_open[:,1,:])),"*", color = "magenta")
-    # plt.show()
-
-    plt.plot(dose_0, np.log(np.ravel(data_control)), "*", color = "magenta")
-    #plt.plot(np.linspace(np.min(doses),10,100),logLQ(np.linspace(np.min(doses),10,100),
-    #        fitting_param[0], fitting_param[1]), color = "salmon",
-    #        label = r"fit: -($\alpha \cdot d + \beta \cdot d^2$)" + "\n" + r"$\alpha = {:.4}, \beta = {:.4}$".format(fitting_param[0], fitting_param[1]))
-
-    plt.plot(np.linspace(np.min(doses),5,100),logLQ(np.linspace(np.min(doses),5,100),
-            fitting_param[0], fitting_param[1]), color = "salmon",
-            label = r"fit: -($\alpha \cdot d + \beta \cdot d^2$)" + "\n" + r"$\alpha = {:.4}, \beta = {:.4}$".format(fitting_param[0], fitting_param[1]))
-    plt.legend()
-    plt.show()
-
-    #data_control = np.delete(data_control, [2,3], axis = 0)
-    #t_test = ttest_ind(data_control[0], data_control[1])
-    #print(t_test)
-
-
-    """
-    #Anova test on the datasets
-
-    RSS1 = np.zeros(4)
-    RSS2 = np.zeros(4)
-
-    x_bar = np.mean(data_control,axis = 1)
-    for i in range(1,len(data_control)):
-        RSS1[i] = np.sum((x_bar[i]-data_control[i])**2)
-
-    SSW = np.sum(RSS1)  #Sum of squares within
-
-    SST = np.sum((np.mean(np.ravel(data_control))-np.ravel(data_control))**2) #total sum of squares
-
-    for i in range(len(data_control)):
-        RSS2[i] = np.sum((np.mean(np.ravel(data_control)) - x_bar[i])**2)
-
-    SSB = np.sum(RSS2) * data_control.shape[1] #sum of squares between
-
-    SSB_df = data_control.shape[0]-1 #3-1 = 2
-
-    SSW_df = data_control.shape[0]*data_control.shape[1] - data_control.shape[0]  #3*4-3 = 9
-
-    F = (SSB/SSB_df)/(SSW/SSW_df)
-
-    p_value = 2*(1-f.cdf(F, SSB_df, SSW_df))
-
-    print("F-test results:\n")
-    print("F   p-value\n{:.2f}   {:.2e}".format(F,p_value))"""
-
-
-
-    """
-    #Identifying which of the data is low and high count
-
-    #low_res_idx, high_res_idx = kde(np.ravel(data_control), 100,1)
-
-    #print(low_res_idx[:,0])
-    #print("----------------")
-    #print(high_res_idx[:,0])
-
-
-
-    low_res_idx, high_res_idx = kde(np.ravel(data_open[:,0,:]), 100,1)
-
-    print(low_res_idx[:,0])
-    print("**********")
-    print(high_res_idx[:,0])
-
-    low_res_idx, high_res_idx = kde(np.ravel(data_open[:,1,:]), 100,1)
-
-    print(low_res_idx[:,0])
-    print("**********")
-    print(high_res_idx[:,0])
-    """

@@ -3,20 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.stats import f, ttest_ind, chi2, t
-from kernel_density_estimation import kde
 import seaborn as sb
 from scipy import stats, optimize
-import seaborn as sb
-from poisson import poisson
 from scipy.interpolate import interp1d
-from utils import K_means, logLQ, fit, poisson_regression, data_stacking,design_matrix, data_stacking_2, mean_survival, logLQ, LQres, dose_profile2
-import sys
-from plotting_functions_survival import pooled_colony_hist, survival_curve_grid, survival_curve_open, pred_vs_true_SC
+from utils import  data_stacking, design_matrix, data_stacking_2,  dose_profile2
 import cv2
-from playsound import playsound
 from sklearn.model_selection import train_test_split
 import pickle
-import skimage.transform as tf
 import statsmodels.api as sm
 
 
@@ -106,10 +99,6 @@ if control == True:
     #mean_SC_ctrl = np.mean(pooled_SC_ctrl)
     #extracting flask template and cropping away edges
 
-
-
-    #GREY_chan_cropped = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Measurements\\Grid_Stripes\\EBT3_Stripes_310821_Xray220kV_5Gy1_001.tif",-1)[10:-10,10:-10,0]
-    #GREY_chan_cropped = tf.rescale(GREY_chan_cropped,4)
     plt.subplot(131)
     plt.imshow(flask_template)
     #flask_template_1D = flask_template[cropping_limits[0]:cropping_limits[1],cropping_limits[2]:cropping_limits[3]]
@@ -160,7 +149,7 @@ if control == True:
     ax[1].set_xlabel("Position in cell flask [cm]")
     ax[1].set_ylabel("1 + zeros/ones")
     # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\1D analysis\\weightfactor_{}.png".format(flask_template.shape), dpi = 1200, pad_inches = 0.4)
-    plt.close()
+    plt.show()
 
     """
     Iterating over all rows in colonymap and summing up surviving colonies shouldn't there be more since they are 47*37 bands?
@@ -270,27 +259,31 @@ if open_ == True:
     # mean_survival_ctrl = np.mean(surviving_colonies_ctrl, axis = 0)
     mean_survival_ctrl = np.mean(surviving_colonies_ctrl, axis = 0)
 
-    combined_survival = np.append(surviving_colonies_ctrl[:,0]/mean_survival_ctrl,
-                        np.append(surviving_colonies_open[:,0]/mean_survival_ctrl,
-                        surviving_colonies_open[:,1]/mean_survival_ctrl))
+    combined_survival = np.append(surviving_colonies_ctrl[:,0]/mean_survival_ctrl, #ctrl
+                        np.append(surviving_colonies_open[:,0]/mean_survival_ctrl, #2 Gy
+                        surviving_colonies_open[:,1]/mean_survival_ctrl)) #5 Gy
 
 
+    # combined_survival = np.delete(combined_survival,np.argwhere(combined_survival < 0.7)[0,0])
+    # dose_axis = np.delete(dose_axis, np.argwhere(combined_survival < 0.7)[0,0])
+    # plt.plot(dose_axis,combined_survival, "*")
+    # # plt.plot(2,combined_survival[12], "o")
+    # plt.show()
     """
     Using statsmodels to fit instead of polyfit
     """
 
 method1 = True
 if method1:
-
-
         dose_interp = np.linspace(0,10,1000)
-        X = np.array([np.repeat(1, len(dose_axis)), dose_axis, dose_axis**2]).T
-        X_ = np.array([np.repeat(1, len(dose_interp)), dose_interp, dose_interp**2]).T
+        # X = np.array([np.repeat(1, len(dose_axis)), dose_axis, dose_axis**2]).T
+        # X_ = np.array([np.repeat(1, len(dose_interp)), dose_interp, dose_interp**2]).T
+        X = np.array([dose_axis, dose_axis**2]).T
+        X_ = np.array([dose_interp, dose_interp**2]).T
 
         fit = sm.OLS(np.log(combined_survival), X).fit()
 
-
-        S_ = fit.params[1] * dose_interp + fit.params[2]*dose_interp**2
+        S_ = fit.params[0] * dose_interp + fit.params[1]*dose_interp**2
         print(fit.summary())
         predictions = fit.get_prediction(X_)
         frame = predictions.summary_frame(alpha=0.05)
@@ -305,11 +298,11 @@ if method1:
         plt.fill_between(dose_interp,  frame.mean_ci_lower, frame.mean_ci_upper, color = "navy", label = "C.I. 95%", alpha = 0.6)
         #plt.fill_between(dose_interp,  frame.obs_ci_lower,  frame.obs_ci_upper, color = "darkviolet", label = "P.I. 95%", alpha = 0.6)
 
-        plt.plot(dose_interp, fit.predict(X_),label = r"({:+f} $\pm$ {:f} D) {:+f} $\pm$ {:f} $D^2$".format(fit.params[1], fit.bse[1], fit.params[2], fit.bse[2]) )
+        plt.plot(dose_interp, fit.predict(X_),label = r"({:+.3f} $\pm$ {:.3f} D) {:+.3f} $\pm$ {:.3f} $D^2$".format(fit.params[0], fit.bse[0], fit.params[1], fit.bse[1]) )
         #plt.plot(dose_interp, S_, label = r"({:+f} $\pm$ {:f} d) {:+f} $\pm$ {:f} $d^2$".format(fit.params[1], fit.bse[1], fit.params[2], fit.bse[2]))
-        plt.legend()
-        # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\1D analysis\\LQ_model_1D.png", bbox_inches ="tight", pad_inches = 0.1, dpi = 1200)
-        plt.close()
+        plt.legend(fontsize = 10)
+        plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\1D analysis\\LQ_model_1D.png", bbox_inches ="tight", pad_inches = 0.1, dpi = 1200)
+        plt.show()
 
 method2 = False
 if method2:
@@ -434,8 +427,15 @@ if Grid == True:
     #dose_map_open = dose_map_open[cropping_limits_1D[0]:cropping_limits_1D[1], cropping_limits_1D[2]:cropping_limits_1D[3]]
     dose_map_grid = survival_grid.registration()  #ideal dose map cropping limits
 
-    dose_map_grid = dose_map_grid[cropping_limits_1D[0]:cropping_limits_1D[1], 800:1600]
 
+    dose_ = 10
+
+    if dose_ == 2:
+        dose_map_grid = dose_map_grid[cropping_limits_1D[0]:cropping_limits_1D[1], 800:1600]*2/5
+    elif dose_ == 5:
+        dose_map_grid = dose_map_grid[cropping_limits_1D[0]:cropping_limits_1D[1], 800:1600]
+    elif dose_ == 10:
+        dose_map_grid = dose_map_grid[cropping_limits_1D[0]:cropping_limits_1D[1], 800:1600]*10/5
 
 
     #print(dose_map_grid.shape)
@@ -448,7 +448,7 @@ if Grid == True:
     within these bands. The larger the band, the more smoothed dose
     """
 
-    dx = 0.5 #mm  similar to our Poisson regression
+    dx = 1 #mm  similar to our Poisson regression
     survival_bands = int(dx*47)  #pixels
     num_bands = flask_template.shape[0]//survival_bands
 
@@ -565,32 +565,62 @@ if Grid == True:
         99 -0.069516  0.030432      -0.132803      -0.006229     -0.310381      0.171349
         """
         print(dose_profile.shape)
-        X_dose = np.array([np.repeat(1,len(dose_profile)), dose_profile, dose_profile**2]).T
+        # X_dose = np.array([np.repeat(1,len(dose_profile)), dose_profile, dose_profile**2]).T
+        X_dose = np.array([dose_profile, dose_profile**2]).T
+
         predframe = fit.get_prediction(X_dose).summary_frame(alpha = .05)
         print(predframe)
         #not pred.mean for some reason
         predicted = np.exp(fit.predict(X_dose))
+
         #print(predicted_SC)
         # S_ = predicted.
     elif method2:
         predicted = np.polyval(coeff,dose_profile)
 
-    # observed = np.log(survival_profile_grid[1]) #5 Gy
-    observed = survival_profile_grid[1]
+    if dose_ == 2:
+        observed = survival_profile_grid[0] #2 Gy
+    elif dose_ == 5:
+        observed = survival_profile_grid[1] #5 Gy
+    elif dose_ == 10:
+        observed = survival_profile_grid[2] #10 Gy
+
+
+    print(survival_grid_stderr.shape)
+
      #print(np.exp(observed) - t.ppf(0.95, len(dose_profile))*np.exp(survival_grid_stderr[1]))
 
     print(np.min(np.abs(predicted - observed)/((predicted + observed)/2)))
     diff = np.abs(predicted - observed)/((predicted + observed)/2) #(np.exp(predicted) - np.exp(observed))/np.exp(observed)
 
-    plt.title("dx = {} mm".format(dx))
-    plt.xlabel("Position in flask [mm]")
-    plt.ylabel("Survival [a.u.]")
-    plt.plot(split_image_height, observed, label = "GRID 5 Gy observed", color = "navy")
-    plt.plot(split_image_height,predicted, "o-", label = "GRID 5 Gy predicted", color = "darkorange")
-    plt.fill_between(split_image_height, np.exp(predframe.mean_ci_lower), np.exp(predframe.mean_ci_upper), alpha = 0.6, color = "orange", label = "95% C.I. pred")
-    plt.fill_between(split_image_height, observed - t.ppf(0.95, len(dose_profile))*survival_grid_stderr[1],
-                                          observed + t.ppf(0.95, len(dose_profile))*survival_grid_stderr[1], alpha = 0.6, color = "deepskyblue", label = "95% C.I. obs.")
-    plt.plot(split_image_height,diff, "--", label = "|pred-obs|/pred")
+    fig,ax = plt.subplots(figsize = (8,6))
+    ax.set_title("dx = {} mm".format(dx), fontsize = 15)
+    ax.set_xlabel("Position in flask [cm]", fontsize = 15)
+    ax.set_ylabel(r"$S_{irr}/\bar{S}_{ctrl}$", fontsize = 15)
+
+    if dose_ == 2:
+        ax.plot(split_image_height, observed, label = "GRID 2 Gy observed", color = "navy")
+        ax.plot(split_image_height,predicted, "o-", label = "GRID 2 Gy predicted", color = "darkorange")
+        ax.fill_between(split_image_height, np.exp(predframe.mean_ci_lower), np.exp(predframe.mean_ci_upper), alpha = 0.6, color = "orange", label = "95% C.I. pred")
+        ax.fill_between(split_image_height, observed - t.ppf(0.95, len(dose_profile))*survival_grid_stderr[0],
+                                              observed + t.ppf(0.95, len(dose_profile))*survival_grid_stderr[0], alpha = 0.6, color = "deepskyblue", label = "95% C.I. obs.")
+    elif dose_ == 5:
+        ax.plot(split_image_height, observed, label = "GRID 5 Gy observed", color = "navy")
+        ax.plot(split_image_height,predicted, "o-", label = "GRID 5 Gy predicted", color = "darkorange")
+        ax.fill_between(split_image_height, np.exp(predframe.mean_ci_lower), np.exp(predframe.mean_ci_upper), alpha = 0.6, color = "orange", label = "95% C.I. pred")
+        ax.fill_between(split_image_height, observed - t.ppf(0.95, len(dose_profile))*survival_grid_stderr[1],
+                                              observed + t.ppf(0.95, len(dose_profile))*survival_grid_stderr[1], alpha = 0.6, color = "deepskyblue", label = "95% C.I. obs.")
+    elif dose_ == 10:
+        ax.plot(split_image_height, observed, label = "GRID 10 Gy observed", color = "navy")
+        ax.plot(split_image_height,predicted, "o-", label = "GRID 10 Gy predicted", color = "darkorange")
+        ax.fill_between(split_image_height, np.exp(predframe.mean_ci_lower), np.exp(predframe.mean_ci_upper), alpha = 0.6, color = "orange", label = "95% C.I. pred")
+        ax.fill_between(split_image_height, observed - t.ppf(0.95, len(dose_profile))*survival_grid_stderr[2],
+                                              observed + t.ppf(0.95, len(dose_profile))*survival_grid_stderr[2], alpha = 0.6, color = "deepskyblue", label = "95% C.I. obs.")
+
+    ax.legend(fontsize = 12, loc = "upper left")
+    ax2 = ax.twinx()
+    ax2.plot(split_image_height,diff, "--", label = "RPD")
+    ax2.set_ylabel("RPD")
 
     #plt.plot(split_image_height, np.log(dose_profile/np.max(dose_profile)), label = "dose")
     #plt.plot(split_image_height, survival_profile_grid[1],label = "GRID 2 Gy")
@@ -598,8 +628,16 @@ if Grid == True:
     #plt.plot(split_image_height,survival_profile_open[1],label = "Open 5 Gy")
     #plt.plot(split_image_height,survival_profile_open[0],label = "Open 2 Gy")
     #plt.ylim([-0.5,1.5])
-    #plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\survival_profile.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
-    plt.legend()
+    # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\survival_profile_2.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
+    ax2.legend(fontsize = 12, loc = "upper right")
+
+    if dose_ == 2:
+        fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\1D analysis\\survival_profile_2Gy_1dx.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 300)
+    elif dose_ == 5:
+        fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\1D analysis\\survival_profile_5Gy_1dx.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 300)
+    elif dose_ == 10:
+        fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\1D analysis\\survival_profile_10Gy_1dx.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 300)
+
 
     plt.show()
 
