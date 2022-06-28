@@ -28,6 +28,15 @@ survival_control = survival_analysis(folder, time, mode[0], position, kernel_siz
 
 ColonyData_control, data_control = survival_control.data_acquisition()
 
+print(data_control.shape)
+
+print(data_control[0,0], np.mean(data_control[0,0]))
+print(data_control[1,0],np.mean(data_control[1,0]))
+print(data_control[2,0],np.mean(data_control[2,0]))
+print(data_control[3,0],np.mean(data_control[3,0]))
+
+
+
 print(data_control[0])
 
 f1 = f_oneway(data_control[0,0],data_control[1,0])
@@ -35,15 +44,36 @@ f2 = f_oneway(data_control[2,0], data_control[3,0])
 
 print(f1,f2)
 
+
 plt.style.use("seaborn")
-x = np.arange(1,5,1)
-plt.plot(x,data_control[0,0], "*", label = time[0])
-plt.plot(x,data_control[1,0], "*", label = time[1])
-plt.plot(x,data_control[2,0], "*", label = time[2])
-plt.plot(x,data_control[3,0], "*", label = time[3])
-plt.xlabel("ctrl flask")
-plt.ylabel("counted colonies")
-plt.legend()
-plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\data acquisition\\segmentation_data.png", pad_inches = 0.1, bbox_inches = "tight", dpi = 1200)
+x = np.arange(1,5,1,dtype = int)
+
+fig, ax1 = plt.subplots()
+ax1.set_title("Colonies counted in control flasks" ,fontsize = 13)
+ax1.set_xlabel('ctrl flask', fontsize = 15)
+ax1.set_ylabel("Colonies Counted", fontsize = 15)
+ax1.plot(x,data_control[0,0], "*", label = time[0], markersize = 15)
+ax1.plot(x,data_control[1,0], "*", label = time[1], markersize = 15)
+ax1.plot(x,data_control[2,0], "*", label = time[2], markersize = 15)
+ax1.plot(x,data_control[3,0], "*", label = time[3], markersize = 15)
+ax1.legend()
+ax1.set_xticks(x, fontsize = 15)
+
+
+
+yticks_labels = np.round(data_control[:,0]/3e4*100, 3).ravel()
+print(yticks_labels)
+ax2 = ax1.twinx()
+ax2.set_ylabel("Plating efficiency (%)", fontsize = 15)
+ax2.set_ylim(0,np.max(yticks_labels))
+ax2.grid(False)
+# ax2.plot(x,data_control[0,0]/3e4*100, "*", label = time[0])
+# ax2.plot(x,data_control[1,0]/3e4*100, "*", label = time[1])
+# ax2.plot(x,data_control[2,0]/3e4*100, "*", label = time[2])
+# ax2.plot(x,data_control[3,0]/3e4*100, "*", label = time[3])
+
+
+
+# plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\data acquisition\\segmentation_data.png", pad_inches = 0.1, bbox_inches = "tight", dpi = 300)
 
 plt.show()
