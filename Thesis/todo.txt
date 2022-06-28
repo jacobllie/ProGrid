@@ -1,3 +1,0 @@
-plot alpha beta vs grid size 
-plot chi squared or loglikelihood
-akaike between the models with increasing number of regressors
