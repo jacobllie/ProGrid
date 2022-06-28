@@ -7,17 +7,21 @@ def low_dose_estimation(T,D,wanted_dose,pos_labels, repetitions):
     time = np.zeros((D.shape[0],D.shape[1]))
     mean_slope = 0
     mean_intercept = 0
+    r2 = np.zeros(len(D))
     stderr_slope = np.zeros((len(D)))
     stderr_intercept = np.zeros((len(D)))
     stack_T = np.tile(T,repetitions)
-    fig, ax = plt.subplots(nrows = 2, ncols = 2, figsize = (13,13))
+    fig, ax = plt.subplots(nrows = 2, ncols = 2, figsize = (10,6))
     ax = ax.flatten()
 
     for i in range(len(D)):
         print(np.ravel(D[i]))
         n = len(np.ravel(D[i]))
-        ax[i].set_xlabel("Time [s]")
-        ax[i].set_ylabel("Dose [Gy]")
+        if i == 2 or i == 3:
+            ax[i].set_xlabel("Time [s]")
+        if i == 0 or i  == 2:
+            ax[i].set_ylabel("Dose [Gy]")
+
         ax[i].plot(stack_T,np.ravel(D[i]),"o", label = "Data")
         #plt.plot(T,D[i,3],"p",label="Data 4")
 
@@ -35,6 +39,7 @@ def low_dose_estimation(T,D,wanted_dose,pos_labels, repetitions):
         mean_intercept += intercept
         stderr_slope[i] = Y_A.stderr
         stderr_intercept[i] = Y_A.intercept_stderr
+        r2[i] = Y_A.rvalue**2
         Y = stack_T*slope + intercept
         T_ = np.linspace(5,20,100)
         Y_ = T_*slope + intercept
@@ -50,15 +55,18 @@ def low_dose_estimation(T,D,wanted_dose,pos_labels, repetitions):
         # plt.plot(T_,conf)
         ax[i].plot(T_, Y_ - conf, "--", linewidth = .5, c = "r", label = "95% CI")
         ax[i].plot(T_,Y_ + conf, linestyle = "--", linewidth = .5, c = "r")
-        ax[i].legend()
-    #fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\figures\\low_dose_regression.png", pad_inches = 1,dpi = 1200)
+        ax[i].legend(fontsize = 7)
+    # fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\IC Calibration\\310821\\low_dose_regression.png", pad_inches = 1,dpi = 1200)
     plt.show()
     mean_slope /= len(D)
     mean_intercept /= len(D)
-    mean_stderr_slope = np.sqrt(np.sum(stderr_slope**2)/(len(D)-2)) #must square to sum errors
-    mean_stderr_intercept = np.sqrt(np.sum(stderr_intercept**2)/(len(D)-2))
+    mean_r2 = np.mean(r2)
+    stderr_r2 = np.std(r2)/np.sqrt(len(D))
+    mean_stderr_slope = np.sqrt(np.sum(stderr_slope**2)/(len(D))) #must square to sum errors
+    mean_stderr_intercept = np.sqrt(np.sum(stderr_intercept**2))/(len(D))
     # mean_stderr_estimate = np.sqrt(np.sum(stderr_estimate**2)/(len(D)-2))
-
+    print("mean slope with stderr")
+    print(mean_slope*60, mean_stderr_slope)
 
 
     print("sfdjhsfdhf")
@@ -66,7 +74,9 @@ def low_dose_estimation(T,D,wanted_dose,pos_labels, repetitions):
     print(mean_intercept)
 
     mean_time = (wanted_dose * 1.0256 - mean_intercept)/mean_slope
+    print(mean_time, mean_intercept,mean_slope)
     dt = np.sqrt((-1/mean_slope*mean_stderr_intercept)**2 + (-(wanted_dose*1.026-mean_intercept)/mean_slope**2*mean_stderr_slope)**2)  #no uncertainty in
+    print(dt)
     stack_T = np.tile(T, D.shape[0]*D.shape[1])
     Y = (stack_T*mean_slope) + mean_intercept
     T_ = np.linspace(5,20,100)
@@ -75,8 +85,7 @@ def low_dose_estimation(T,D,wanted_dose,pos_labels, repetitions):
 
     n = len(np.ravel(D))
     conf = stats.t.ppf(0.95, n - 2) * np.sqrt(MSE*(1/n + (T_ - np.mean(T_))**2/np.sum((T_ - np.mean(T_))**2)))
-    print(conf[conf <0])
-    plt.title("Mean fit")
+    plt.title(r"Mean fit with mean $R^2$ = {:.8f} $\pm$ {:f}".format(mean_r2, stderr_r2))
     plt.xlabel(" Time [s]")
     plt.ylabel("Dose [Gy]")
     plt.plot(T_,Y_,label = "D = {:.4f} ($\pm$ {:.4f})T + {:.4f} ($\pm$ {:.4f})".format(mean_slope, mean_stderr_slope,mean_intercept, mean_stderr_intercept))
@@ -85,7 +94,7 @@ def low_dose_estimation(T,D,wanted_dose,pos_labels, repetitions):
     #plt.plot(T_, Y_ - conf, "--", linewidth = .5, c = "r", label = "95% CI")
     #plt.plot(T_,Y_ + conf, linestyle = "--", linewidth = .5, c = "r")
     plt.legend()
-    plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\IC Calibration\\310821\\mean_fit.png", pad_inches = 0.2, bbox_inches = "tight", dpi = 1200)
+    # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\IC Calibration\\310821\\mean_fit.png", pad_inches = 0.2, bbox_inches = "tight", dpi = 1200)
     plt.show()
     """plt.plot(T*mean_slope + mean_intercept,T,label = "T = {:.4f} * (D + {:.4f})".format(1/mean_slope,-mean_intercept))
     plt.legend()
@@ -106,11 +115,13 @@ def high_dose_estimation(wanted_dose,doserate, std_doserate):
     dt = np.zeros(len(wanted_dose))
     print("mean doserate Gy/min")
     print(mean_doserate*60)
+    print(mean_doserate,std_doserate)
+
     print("Mean doserate per m over all positions and all repetitions is {:.5f} Gy/s".format(mean_doserate))
     for i,dose in enumerate(wanted_dose):
         #time[i] = [dose/np.mean(doserate[j]) for j in range(len(doserate))]  #er det riktig å ta gjennomsnittet av alle outputmålingene?
         mean_time[i] = dose/mean_doserate
-        dt[i] = (dose*1.026/mean_doserate**2*std_doserate)**2/np.sqrt(doserate.shape[0]*doserate.shape[1])  #divide with number of positions*repeated measurements
+        dt[i] = np.sqrt((dose*1.026/mean_doserate**2*std_doserate)**2)#/np.sqrt(doserate.shape[0]*doserate.shape[1])  #divide with number of positions*repeated measurements
         print(dose)
     return mean_time, dt
 

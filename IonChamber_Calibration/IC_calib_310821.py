@@ -11,7 +11,7 @@ P_u = 1.02
 k_TP = 1.006745405
 C = N_k * k_u * mu_over_rho * P_u * k_TP
 
-
+positions = ["A", "B", "C", "D"]
 """
 D has shape (4,3,4), 4 positions, 4 measurements for 5, 10, 15 and 20 seconds repeated 3 times.
 """
@@ -34,7 +34,8 @@ print("uncertainty in t is ")
 print(dt)
 
 print(mean_time)
-plt.show()
+
+plt.close()
 
 for i in range(len(low_dose)):
     print("For {:.1f} Gy {:d} s".format(low_dose[i],int(mean_time[i])))
@@ -45,16 +46,40 @@ for i in range(len(low_dose)):
 high_dose = np.array([1,2,5,10])*1.0256
 output = np.array([[11.74,11.89,11.71],[11.71,11.62,11.78],[12.14,12.06,12.08],\
 [12.26,12.21,12.13]])   #nC
+
+"""means = []
+fig,ax = plt.subplots()
+for i in range(len(output)):
+    ax.plot(np.repeat(i,3),output[i], "*",label = positions[i])
+    ax.plot(i,np.mean(output[i]),"o",label = "Mean")
+    means.append(np.mean(output[i]))
+print("Percentage difference between position A,B and C,D")
+AB_mean = np.sum(means[:2])/2
+CD_mean = np.sum(means[2:4])/2
+print(np.abs(AB_mean - CD_mean)/(AB_mean + CD_mean)/2*100)
+ax.legend()
+plt.show()"""
+
+
+print(output.shape)
 doserate = output * C/60 #dose/s
 
 
 Mu = np.mean(output)  #finding the mean of the three repeated measurements
-dMu = np.std(np.mean(output, axis = 1))  #finding the mean measurement before finding std for higher precision
+dMu = np.std(np.mean(output, axis = 1))/np.sqrt(3)  #finding the mean measurement before finding std for higher precision
 print(dMu)
+
 dN_k = 0.39/1000 #mGy -----> Gy
 print("total error in doserate")
+
+
+
+
 std_tot = C*np.sqrt((Mu*dN_k)**2 + (N_k*dMu)**2)
-print(std_tot)
+print("Gy/min standard error")
+print(std_tot*60)
+
+
 #stderr = std_tot/np.sqrt(4)
 
 
