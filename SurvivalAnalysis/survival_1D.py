@@ -569,7 +569,7 @@ if Grid == True:
         X_dose = np.array([dose_profile, dose_profile**2]).T
 
         predframe = fit.get_prediction(X_dose).summary_frame(alpha = .05)
-        print(predframe)
+    
         #not pred.mean for some reason
         predicted = np.exp(fit.predict(X_dose))
 
@@ -586,11 +586,11 @@ if Grid == True:
         observed = survival_profile_grid[2] #10 Gy
 
 
-    print(survival_grid_stderr.shape)
+
 
      #print(np.exp(observed) - t.ppf(0.95, len(dose_profile))*np.exp(survival_grid_stderr[1]))
 
-    print(np.min(np.abs(predicted - observed)/((predicted + observed)/2)))
+
     diff = np.abs(predicted - observed)/((predicted + observed)/2) #(np.exp(predicted) - np.exp(observed))/np.exp(observed)
 
     fig,ax = plt.subplots(figsize = (8,6))
@@ -640,37 +640,3 @@ if Grid == True:
 
 
     plt.show()
-
-
-    idx = np.argwhere(colony_map_ctrl[0,0,0] > 0) #finding ideal index to start on
-    print(np.argmin(np.sum(idx,axis = 1))) #seems like first colony is located on pixel 56
-
-    image_height = flask_template.shape[0]
-
-    #expanding dims for dose profile function to work
-    dose_profile_open = dose_profile2(image_height,dose_map_open)
-    dose_profile_grid = dose_profile2(image_height,dose_map_grid)
-
-
-
-    image_height_mm = [int(i/47) for i in np.arange(0,image_height,1)]
-    image_height_px = np.arange(0,image_height,1)
-    plt.plot(image_height_px,dose_profile_open)
-    plt.plot(image_height_px,dose_profile_grid)
-    plt.close()
-    #plt.show()
-    print(dose_profile_open.shape, dose_profile_grid.shape)
-
-
-
-    survival_profile_ctrl = np.mean(num_colonies_ctrl,axis = (0,2))
-    survival_profile_open = np.mean(num_colonies_open,axis = (0,2))
-    survival_profile_grid = np.mean(num_colonies_grid,axis = (0,2))
-
-    print(survival_profile_grid.shape)
-
-    plt.plot(image_height_px,survival_profile_grid[2]/mean_ctrl_survival)
-    plt.close()
-
-    #remember to unhash this when performing 2D analysis
-    survival_grid.registration()
