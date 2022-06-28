@@ -423,6 +423,8 @@ class film_calibration:
             RED_bckg = self.color_channel_extraction(self.background_img, self.num_background, ROI_size, image_types[0])
             RED_cont = self.color_channel_extraction(self.control_img, self.num_control, ROI_size, image_types[1])
             self.netOD = self.netOD_calculation(RED_bckg, RED_cont, RED_chan_ROI, films_per_dose)
+            print("wazzuppp")
+            print(self.netOD.shape)
             return self.netOD
 
     def netOD_split(self, doses, bandwidth):
