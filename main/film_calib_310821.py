@@ -1,12 +1,9 @@
 from film_calibration_tmp9 import film_calibration
 import numpy as np
 import matplotlib.pyplot as plt
-from dose_profile import dose_profile, netOD_profile
-from dose_map_registration import phase_correlation#image_reg
-from utils import mean_dose, D, dose_fit_error
+from dose_profile import dose_profile
+from utils import mean_dose, dose_fit_error
 from scipy.stats import t
-import sys
-from matplotlib import rcParams
 import pandas as pd
 
 
@@ -176,6 +173,7 @@ low_response_OD, high_response_OD, low_res_dose, high_res_dose, bandwidth_blue_c
 # low_response_OD, high_response_OD, low_res_dose, high_res_dose, bandwidth_blue_channel = film_calib.netOD_split(dose_axis, bandwidth_blue_channel, bandwidth_stepsize = 0.0001, channel = "GREY")
 
 
+print(low_response_OD.shape, high_response_OD.shape)
 
 
 low_dose, low_dose_count = np.unique(low_res_dose, return_counts = True)
@@ -255,7 +253,6 @@ f.write("[{:.5f}, {:.5f},{:.5f}]\t\t\t{}".format(np.sum(fit_low.fun**2)/len(fit_
                                                       np.sum(fit_low.fun**2)/len(fit_low.fun) + np.sum(fit_high.fun**2)/len(fit_high.fun) ,channel))
 f.close()
 
-# sys.exit()
 
 
 print("fitting param low response       fitting param high response")
@@ -282,11 +279,6 @@ if confidence:
     low_response_OD_interp = np.linspace(0,max(low_response_OD),100)
     high_response_OD_interp = np.linspace(0,max(high_response_OD),100)
 
-    #Delta method defines variance of function (not objective function) as G'(beta_hat) Var(beta_hat) G'(beta_hat)
-    #D now stands for dose and is represented by D(netOD)
-    #need derivatives of the  D(netOD)
-    # dDdp_low = np.array([low_response_OD, low_response_OD**fitting_param_low[2], np.log(low_response_OD)*fitting_param_low[1]*low_response_OD**fitting_param_low[2]])
-    # dDdp_high = np.array([high_response_OD, high_response_OD**fitting_param_high[2], np.log(high_response_OD)*fitting_param_high[1]*high_response_OD**fitting_param_high[2]])
     D_interp_low = film_calib.EBT_model(low_response_OD_interp, fitting_param_low, model_type)
     D_interp_high = film_calib.EBT_model(high_response_OD_interp, fitting_param_high,model_type)
 
@@ -427,18 +419,7 @@ netOD_grid,_,_,_,dOD_grid = film_measurements_grid.calibrate(ROI_size, films_per
 
 image_height = np.arange(0,netOD_open.shape[0],1) #pixels
 
-"""open_profile = netOD_profile(image_height,netOD_open)
-grid_profile = netOD_profile(image_height,netOD_grid)
 
-plt.plot(grid_profile)
-plt.show()
-
-plt.plot(image_height,open_profile)
-plt.axhline(np.mean(open_profile))
-plt.plot(image_height, grid_profile,c =  "r")
-plt.axhline(np.mean(grid_profile[grid_profile < 0.135]),c = "r")
-plt.axhline(np.mean(grid_profile[np.logical_and(grid_profile < 0.345, grid_profile > 0.33)]), c = "r")
-plt.close()"""
 
 
 bandwidth_grid = 0.005
@@ -454,6 +435,8 @@ low_img_grid, high_img_grid = film_measurements_grid.netOD_split(dose_axis, band
 
 print(low_img_open.shape, high_img_open.shape)
 print(low_img_grid.shape, high_img_grid.shape)
+
+
 
 
 #standard deviation of low and high response OD
@@ -648,6 +631,7 @@ dose_open = np.concatenate((low_mean_open,high_mean_open))
 open_mean_std_low = np.std(low_mean_open, axis = 0)/np.sqrt(len(low_mean_open))
 open_mean_std_high = np.std(high_mean_open, axis = 0)/np.sqrt(len(high_mean_open))
 
+#We sum because of independent errors
 open_mean_std = np.sqrt(open_mean_std_low**2 + open_mean_std_high**2)/2
 
 #combining error from fit and error from averaging the profiles
@@ -815,9 +799,9 @@ mean_grid_dose = np.mean(np.concatenate((low_mean_grid,high_mean_grid)),axis = 0
 MC_score_open = open_MC_data[0]
 mean_open_dose = np.mean(np.concatenate((low_mean_open,high_mean_open)),axis = 0)
 
-#
-# for i in range(len(image_height)):
-#     image_height[i] -= 1  #0.5 mm
+#if Monte Carlo comparison
+for i in range(len(image_height)):
+    image_height[i] -= 1  #0.5 mm
 
 new_idx = image_height >= 0
 new_image_height = image_height[new_idx]
@@ -831,19 +815,19 @@ new_position = position_grid[new_MC_idx]
 new_MC_score_open = MC_score_open[new_MC_idx]
 
 
-fig, ax = plt.subplots(figsize = (15,12))
-ax.set_title("Normalized dose")
+fig, ax = plt.subplots(figsize = (14,7))
+ax.set_title("Normalized dose", fontsize = 15)
 ax.plot(new_image_height, new_open_dose/np.mean(dose_open), color = "green",label ="Obs OPEN")
 ax.fill_between(image_height[new_idx], (mean_open_dose[new_idx] - conf_open[new_idx])/np.mean(dose_open), (mean_open_dose[new_idx] + conf_open[new_idx])/np.mean(dose_open), alpha = 0.8, color = "lime", label  = "95% CI OPEN")
 ax.plot(new_image_height, new_grid_dose/np.mean(dose_open), color = "navy", label = "Obs GRID")
 ax.fill_between(image_height[new_idx], (mean_grid_dose[new_idx] - conf_grid[new_idx])/np.mean(dose_open), (mean_grid_dose[new_idx] + conf_grid[new_idx])/np.mean(dose_open), alpha = 0.8, color = "cyan", label = "95% C.I. GRID")
 ax.plot(new_position, new_MC_score_grid, label = "M.C.Score GRID", color = "magenta")
 ax.plot(new_position, new_MC_score_open, label = "M.C.Score OPEN", color = "purple")
-ax.set_xlabel("Position in cell flask [cm]")
-ax.set_ylabel(r"$\frac{D_{GRID}}{\bar{D}_{OPEN}}$", fontsize = 15, rotation = 0)
-ax.legend()
-# fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\MC_eval_dose_profile.png", pad_inches = 0.1, dpi = 1200)
-plt.close()
+ax.set_xlabel("Position in cell flask [cm]", fontsize = 15)
+ax.set_ylabel(r"$\frac{D_{GRID}}{\bar{D}_{OPEN}}$", fontsize = 17, rotation = 0)
+ax.legend(loc = "lower right")
+fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\MC_eval_dose_profile.png", pad_inches = 0.1, dpi = 300)
+plt.show()
 
 
 
@@ -853,11 +837,11 @@ plt.plot(image_height, mean_open_dose, label ="OPEN 5 Gy")
 plt.fill_between(image_height, mean_grid_dose - conf_grid, mean_grid_dose + conf_grid, alpha = 0.8, color = "cyan", label = "95% CI GRID")
 plt.fill_between(image_height, mean_open_dose - conf_open, mean_open_dose + conf_open, alpha = 0.8, color = "lime", label  = "95% CI OPEN")
 plt.title("Dose profile 5 Gy nominal dose")
-plt.xlabel("Cell flask Position [cm]")
+plt.xlabel("Position in Cell flask [cm]")
 plt.ylabel("Dose [Gy]")
 plt.legend()
-# plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\dose_profile.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
-plt.close()
+plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\dose_profile.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 300)
+plt.show()
 
 
 

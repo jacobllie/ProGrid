@@ -115,10 +115,10 @@ class film_calibration:
                         plt.close()"""
             ax.set_title("Mean RPD between 4 scans for all images")
             ax.set_xlabel("# Film")
-            ax.set_ylabel(r"$\frac{|I_x - I_y|}{(I_x + I_y)/2} \cdot 100\%$", fontsize = 14,labelpad = 40, rotation =0)
+            ax.set_ylabel("RPD", fontsize = 14,labelpad = 40, rotation =0)
             ax.tick_params(axis='both', which='major', labelsize=7)
             fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\310821\\percentage_diff_scans.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 300)
-            plt.close()
+            plt.show()
                     # test_images = []
                     #print("---------------")
 
@@ -1081,7 +1081,7 @@ class film_calibration:
 
                 #forcing 10 Gy to be included
                 high_response[1] = True
-                high_response[0]  =True
+                high_response[0]  = True
 
 
 
@@ -1138,9 +1138,6 @@ class film_calibration:
             print(np.sum(fit_low.fun**2), np.sum(fit_high.fun**2))
             print(df_low,df_high)
 
-            print("Optimality")
-            print(fit_low.optimality)
-
             print(np.sqrt(np.sum(fit_low.fun**2)/(len(fit_low.fun)-1))) #MSE
 
             #self.residual_low = fit_low.cost
@@ -1169,19 +1166,3 @@ class film_calibration:
 
 
         print("\n fitting is complete")
-
-
-
-
-if __name__ == "__main__":
-    folder = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Calibration"
-    background_folder = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Background"
-    test_image = "EBT3_Calib_310821_Xray220kV_00Gy1_001.tif"
-    film_calib = film_calibration(folder, test_image)
-
-    images = film_calib.image_acquisition()
-
-    films_per_dose = 8
-    ROI_size = 2 #mm
-
-    film_calib.calibrate(ROI_size, films_per_dose)

@@ -2,7 +2,6 @@ from film_calibration_tmp9 import film_calibration
 import numpy as np
 import matplotlib.pyplot as plt
 from dose_profile import dose_profile
-from dose_map_registration import phase_correlation#image_reg
 import cv2
 from utils import dose_fit_error
 from scipy.stats import t
@@ -35,12 +34,11 @@ num_fitting_params = 3
 #Finding netOD values
 netOD, sigma_img, sigma_bckg, sigma_ctrl, dOD = film_calib.calibrate(ROI_size, films_per_dose)
 
-"""
-Trying to fit all points
-"""
 method1 = True
 if method1:
-
+    """
+    Ignoring high and low response films
+    """
     fitting_param, param_cov = film_calib.EBT_fit(np.repeat(dose_axis,netOD.shape[2]), num_fitting_params, OD = np.ravel(netOD[2]), model_type = 1)
 
     print(fitting_param.shape)
@@ -56,24 +54,25 @@ if method1:
 
 
 
+print(netOD.shape)
 
 #np.save("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\131021\\netOD_calib\\netOD_131021.npy",netOD)
 
 channels = ["BLUE", "GREEN", "RED", "GREY"]
 colors = ["b","g","r","grey"]
-for i in range(netOD.shape[0]):
-    for j in range(netOD.shape[1]):
-        if j == 0:
-            plt.plot(np.repeat(dose_axis[j], netOD.shape[2]), netOD[i,j], "*", color = colors[i], label = channels[i])
-        else:
-            plt.plot(np.repeat(dose_axis[j], netOD.shape[2]), netOD[i,j], "*", color = colors[i])
+
+for i in range(netOD.shape[1]):
+    if i == 0:
+        plt.plot(np.repeat(dose_axis[i], netOD.shape[2]), netOD[2,i], "*", color = colors[2], label = channels[2])
+    else:
+        plt.plot(np.repeat(dose_axis[i], netOD.shape[2]), netOD[2,i], "*", color = colors[2])
 
 plt.legend()
 plt.xlabel("Dose [Gy]")
 plt.ylabel("netOD")
 plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\131021\\no_split_OD_fit.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 1200)
 
-plt.close()
+plt.show()
 
 
 """
@@ -86,34 +85,12 @@ Now make dose profile with no OD split
 """
 Here we make the stacked dose array, in our case we have 8 films per dose.
 """
-method2 = False
-if method2:
-
-    #removing low response OD
-    netOD_high = (np.delete(np.ravel(netOD[2]), [6*8 + 6, 6*8 + 7]))
-    # netOD_low = list(np.delete(np.ravel(netOD[2]), [6*8, 6*8 + 1, 6*8+2,6*8+3,6*8+4,6*8+5]))
-
-
-    # dose_axis_octo_low = np.array([0,0,0,0,0,0,0,0,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,
-    #                 0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
-    #                 10,10,10,10,10,10,10,10,1,1,1,1,1,1,1,1,2,2,5,5,5,5,5,5,5,5])
-    # plt.plot(dose_axis_octo_low,netOD_low, "*")
-    # plt.show()
-
-
-
-    dose_axis_octo = np.array([0,0,0,0,0,0,0,0,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,
-                    0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
-                    10,10,10,10,10,10,10,10,1,1,1,1,1,1,1,1,2,2,2,2,2,2,5,5,5,5,5,5,5,5])
-
-    plt.plot(dose_axis_octo, netOD_high, "*")
-    plt.close()
-
-    #plt.plot(dose_axis_octo, netOD_high,"*")
-    #plt.show()
 
 
 method3 = True
+"""
+Inserting lacking high or low response films from the first calibration
+"""
 if method3:
 
     bandwidth_red_channel = np.array([0.0005, 0.003, 0.003,0.0005, 0.003, 0.003, 0.005, 0.003])
@@ -175,10 +152,6 @@ if method3:
     plt.show()
 
 
-    """no_split_dose = np.repeat(dose_axis[np.unique(np.argwhere(no_split_OD != 0)[:,0])], len(no_split_OD))
-    print("sbhfdshb")
-    print(no_split_dose)"""
-
 
 
     """
@@ -213,65 +186,6 @@ if method3:
     #plt.plot(no_split_dose, no_split_OD[no_split_OD !=0], "*", label = "no split")
     plt.legend()
     plt.show()
-
-
-    # new_dose_axis = [0,0.1,0.2,0.5,1,2,5,10]
-    #fitting_param_low, fitting_param_high, param_var_low, param_var_high, fit_low, fit_high = film_calib.EBT_fit(dose_axis,num_fitting_params, OD = netOD_high, model_type  = 1)
-
-
-
-    # sys.exit()
-
-    # print(np.argwhere(no_split_OD != 0))
-    """
-    print(np.shape(dose_axis_octo), np.shape(netOD_high))
-    fitting_param_high, res_high = film_calib.EBT_fit(dose_axis_octo, num_fitting_params, OD = netOD_high, model_type = 1)
-
-
-
-
-    OD_axis = np.linspace(0,np.max(netOD_high),100)
-
-    plt.plot(film_calib.EBT_model(OD_axis, fitting_param_high, model_type = 1), OD_axis, label = r" high response fit: D = %.3f $\cdot$ netOD $\cdot$ %.4f $\cdot$ netOD$^{%.4f}$"%(fitting_param_high[0],fitting_param_high[1], fitting_param_high[2]))
-
-    #Same procedure only now we use all the datapoints in our fit
-
-
-    netOD_ravelled = (np.ravel(netOD[2]))
-    dose_axis_octo = np.array([0,0,0,0,0,0,0,0,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,
-                    0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.2,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,
-                    10,10,10,10,10,10,10,10,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,5,5,5,5,5,5,5,5])
-
-
-
-    fitting_params, res = film_calib.EBT_fit(dose_axis_octo, num_fitting_params, OD = netOD_ravelled, model_type = 1)
-
-    OD_axis = np.linspace(0,np.max(netOD_ravelled),100)
-
-    print(film_calib.EBT_model(OD_axis, fitting_params, model_type = 1).shape)
-
-    plt.plot(film_calib.EBT_model(OD_axis, fitting_params, model_type = 1), OD_axis,"*",
-                        label = r" fit: D = %.3f $\cdot$ netOD $\cdot$ %.4f $\cdot$ netOD$^{%.4f}$"%(fitting_params[0],fitting_params[1], fitting_params[2]))
-
-    #We see that the result doesnt change much when fitting all points or when removing low response
-
-    plt.xlabel("Dose [Gy]")
-    plt.ylabel("netOD")
-    for i in range(netOD.shape[2]):
-        if i == 0:
-            plt.plot(dose_axis, netOD[2,:,i],"p",color = "red", label = "red channel netOD")
-            plt.plot(dose_axis, netOD[0,:,i],"d",color = "blue", label = "blue channel netOD")
-            plt.plot(dose_axis, netOD[1,:,i],".",color = "green", label = "green channel netOD")
-            plt.plot(dose_axis, netOD[3,:,i],"*",color = "grey", label = "grey channel netOD")
-        else:
-            plt.plot(dose_axis, netOD[2,:,i],"p",color = "red")
-            plt.plot(dose_axis, netOD[0,:,i],"d",color = "blue")
-            plt.plot(dose_axis, netOD[1,:,i],".",color = "green")
-            plt.plot(dose_axis, netOD[3,:,i],"*",color = "grey")
-
-
-    plt.legend()
-    plt.show()"""
 
 
 test_image_holes = "EBT3_Holes_131021_Xray220kV_5Gy1_001.tif"
@@ -309,7 +223,9 @@ if method1:
     # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\131021\\no_split_OD_dose_profile.png", bbox_inches = "tight", pad_inches = 0.1, dpi = 300)
     plt.show()
 if method3:
-
+    """
+    Using fitting parameters from the first calibration
+    """
     """
     from 310821
     fitting param low response       fitting param high response
@@ -547,7 +463,7 @@ if method3:
 
 
     plt.title("Using fitting parameters from 310821")
-    plt.xlabel("Cell flask Position [cm]")
+    plt.xlabel("Position in cell flask [cm]")
     plt.ylabel("Dose [Gy]")
     for i in range(len(low_mean_grid)):
         if i ==0:
@@ -562,7 +478,7 @@ if method3:
             plt.plot(image_height,high_mean_grid[i],color = "r")
 
     plt.legend()
-    # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\131021\\dose_profile_params_310821_all_films.png", pad_inches = 0.1, bbox_inches = "tight", dpi = 1200)
+    plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\EBT3 dosimetry\\131021\\dose_profile_params_310821_all_films.png", pad_inches = 0.1, bbox_inches = "tight", dpi = 300)
     plt.show()
     # dose_map = film_measurements_holes.EBT_model(netOD_holes ,fitting_params[0],fitting_params[1],fitting_params[2])
 
