@@ -1,12 +1,10 @@
-from survival_analysis4 import survival_analysis
+from survival_analysis_4 import survival_analysis
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.stats import f, ttest_ind, chi2, t
+from scipy.stats import f, t
 import seaborn as sb
-from scipy import stats, optimize
-from scipy.interpolate import interp1d
-from utils import  data_stacking, design_matrix, data_stacking_2,  dose_profile2
+from utils import  data_stacking_2
 import cv2
 from sklearn.model_selection import train_test_split
 import pickle
@@ -323,9 +321,6 @@ if method2:
     print(cov)
     dose_interp = np.linspace(0,10,1000)
 
-    # chi2 = chi2.ppf(0.95,1)
-    # print(chi2)
-    #print(chi2.shape)
 
     """
     For dose = 0, the derivative will become 0, so we need to use
@@ -334,7 +329,7 @@ if method2:
 
     dSdp = np.array([dose_interp, dose_interp**2]) #dS/dalpha, dS/dbeta
 
-    cov_S = (dSdp.T.dot(cov).dot(dSdp))# * chi2
+    cov_S = (dSdp.T.dot(cov).dot(dSdp))
     t_crit = stats.t.ppf(0.95, n - 2)
 
     print(cov_S)
@@ -569,7 +564,7 @@ if Grid == True:
         X_dose = np.array([dose_profile, dose_profile**2]).T
 
         predframe = fit.get_prediction(X_dose).summary_frame(alpha = .05)
-    
+
         #not pred.mean for some reason
         predicted = np.exp(fit.predict(X_dose))
 

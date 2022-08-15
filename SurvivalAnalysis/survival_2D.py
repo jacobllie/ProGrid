@@ -1,15 +1,14 @@
-from survival_analysis4 import survival_analysis
+from survival_analysis_4 import survival_analysis
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from pandas.plotting import scatter_matrix
 from scipy.stats import f, ttest_ind, chi2, f_oneway
-from kernel_density_estimation import kde
 import seaborn as sb
 from scipy import stats, optimize
 from scipy.interpolate import interp1d
-from utils import K_means, logLQ, fit, poisson_regression, data_stacking, design_matrix, data_stacking_2, mean_survival, logLQ, LQres, dose_profile2,corrfunc
-from plotting_functions_survival import survival_histogram, survival_curve_grid, survival_curve_open, pred_vs_true_SC
+from utils import poisson_regression, data_stacking_2, mean_survival ,corrfunc
+from plotting_functions_survival import survival_histogram
 import cv2
 from sklearn.model_selection import train_test_split
 import pickle
@@ -36,7 +35,7 @@ kernel_size_p = [int(i*47) for i in kernel_size_mm]
 cropping_limits_2D = [200,2000,350,1850]
 
 peak_dist_reg = False
-num_regressors = 2
+num_regressors = 4
 
 plt.style.use("seaborn")
 """
@@ -259,228 +258,7 @@ for i in range(len(kernel_size_mm)):
     """
     Poisson regression predicting number of survivors
     """
-    """
-    First analysis method. Calculating peak and valley ratio from cell flask. Not including
-    square size.
-    """
-    method1 = False
-    """
-    First analysis performed trying to generate a traditional LQ like plot
-    """
-    if method1 == True:
-        print("Running method 1")
-        """tot_irradiatet_area = 24.505*100 #mm^2
-        peak_area = 3*215+170.75 #3 full peaks, 1 trapezoidal peak
-        valley_area_ratio = (tot_irradiatet_area-peak_area)/tot_irradiatet_area
-        peak_area_ratio = peak_area/tot_irradiatet_area"""
 
-        tot_analysis_area = (cropping_limits[1] - cropping_limits[0])*(cropping_limits[3] - cropping_limits[2])/47**2 #mm^2 47pixels per mm for 1200 dpi
-        peak_area = 393.32 #mm^2
-        valley_area_ratio = (tot_analysis_area-peak_area)/tot_analysis_area
-        peak_area_ratio = peak_area/tot_analysis_area
-
-
-
-        """
-        Now we stack all data togheter and perform poisson regression.
-        We split the data into training and testing
-        """
-
-
-
-        SC_open, tot_dose_axis_open = data_stacking_2(False, SC_open_2Gy,
-                                                    SC_open_5Gy, dose2Gy_open,
-                                                    dose5Gy_open)
-        SC_grid, tot_dose_axis_grid = data_stacking_2(True, SC_grid_2Gy,
-                                                      SC_grid_5Gy, SC_grid_10Gy,
-                                                      dose2Gy_grid, dose5Gy_grid, dose10Gy_grid)
-        """
-        Adding the control survival and doses (0Gy) to open. Then make individual design matrix with different G factors
-        """
-        tmp = np.repeat(dose2Gy_grid*0,pooled_SC_ctrl.shape[0]*pooled_SC_ctrl.shape[1])
-        X_ctrl = design_matrix(len(np.ravel(pooled_SC_ctrl)), tmp, 4, 0, 0)
-        X_open = design_matrix(len(SC_open),tot_dose_axis_open,4, 1, 0)
-        X_grid = design_matrix(len(SC_grid),tot_dose_axis_grid, 4, peak_area_ratio, valley_area_ratio)
-
-
-        grid_dots = True
-        if grid_dots == True:
-            X_grid_dots = np.loadtxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\GRID_Dots_X_{}regressors.npy".format(num_regressors))
-            SC_grid_dots = np.loadtxt("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\GRID_Dots_SC_{}regressors.npy".format(num_regressors))
-            X_grid_dots_train, X_grid_dots_test, SC_grid_dots_train, SC_grid_dots_test = train_test_split(X_grid_dots,SC_grid_dots, test_size = 0.2)
-
-
-
-        #X_open = np.vstack((X_ctrl,X_open))
-        #X_grid = np.vstack((X_ctrl,X_grid))
-        #SC_open = np.concatenate((np.ravel(pooled_SC_ctrl), SC_open))
-        #SC_grid = np.concatenate((np.ravel(pooled_SC_ctrl), SC_grid))
-        X_ctrl_train,X_ctrl_test,SC_ctrl_train,SC_ctrl_test = train_test_split(X_ctrl,np.ravel(pooled_SC_ctrl),test_size = 0.2)
-        X_open_train,X_open_test,SC_open_train,SC_open_test = train_test_split(X_open,SC_open,test_size = 0.2)
-        X_grid_train,X_grid_test, SC_grid_train,SC_grid_test = train_test_split(X_grid,SC_grid, test_size = 0.2)
-
-        if grid_dots == True:
-            SC_train = np.concatenate((SC_ctrl_train, SC_open_train, SC_grid_train, SC_grid_dots_train))
-            X_train = np.vstack((X_ctrl_train,X_open_train,X_grid_train, X_grid_dots_train))
-
-            SC_test = np.concatenate((SC_ctrl_test, SC_open_test, SC_grid_test, SC_grid_dots_test))
-            X_test = np.vstack((X_ctrl_test,X_open_test,X_grid_test, X_grid_dots_test))
-
-        else:
-            SC_train = np.concatenate((SC_ctrl_train, SC_open_train, SC_grid_train))
-            X_train = np.vstack((X_ctrl_train,X_open_train,X_grid_train))
-
-            SC_test = np.concatenate((SC_ctrl_test, SC_open_test, SC_grid_test))
-            X_test = np.vstack((X_ctrl_test,X_open_test,X_grid_test))
-
-        mean_obs_SC_train = mean_survival(X_train,SC_train)
-
-
-        model, mean_pred_SC_train, summary = poisson_regression(SC_train,X_train,5,
-                                  r"GRID&OPEN: Surviving colonies within {:.1f} X {:.1f} $mm^2$ square".format(kernel_size/47, kernel_size/47),
-                                  'C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GLM_results_39mm_GRID&OPEN_w.G_factor.tex',
-                                  True)
-
-        plt.show()
-
-        mean_obs_SC_test = mean_survival(X_test,SC_test)
-
-        print(mean_obs_SC_test.shape)
-        predicted_tmp = model.get_prediction(X_test).summary_frame()["mean"]
-        mean_pred_SC_test = mean_survival(X_test, predicted_tmp)
-
-
-        dose_axis_train = np.linspace(0,np.max(X_train[:,1]), len(mean_obs_SC_train))
-        dose_axis_test = np.linspace(0,np.max(X_test[:,1]),len(mean_obs_SC_test))
-
-        plt.suptitle("Mean SC observed vs predicted OPEN&GRID")
-        plt.subplot(121)
-        pred_vs_true_SC(mean_obs_SC_train, mean_pred_SC_train, dose_axis_train, "Train")
-        plt.subplot(122)
-        pred_vs_true_SC(mean_obs_SC_test, mean_pred_SC_test, dose_axis_test, "Test")
-        # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_train_test_39mm_survival.png", dpi = 1200)
-
-        plt.show()
-
-        mean_obs_SC_open = mean_survival(X_open_test, SC_open_test)
-        dose_axis_open = np.linspace(0,np.max(X_open_test[:,1]),len(mean_obs_SC_open))
-        mean_obs_SC_open = mean_survival(X_open_test,SC_open_test)
-        predicted_tmp = model.get_prediction(X_open_test).summary_frame()["mean"]
-        mean_pred_SC_open = mean_survival(X_open_test,predicted_tmp)
-
-        mean_obs_SC_grid = mean_survival(X_grid_test, SC_grid_test)
-        dose_axis_grid = np.linspace(0,np.max(X_grid_test[:,1]),len(mean_obs_SC_grid))
-        mean_obs_SC_grid = mean_survival(X_grid_test,SC_grid_test)
-        predicted_tmp = model.get_prediction(X_grid_test).summary_frame()["mean"]
-        mean_pred_SC_grid = mean_survival(X_grid_test,predicted_tmp)
-
-
-
-        plt.suptitle("Mean SC observed vs predicted")
-        plt.subplot(121)
-        pred_vs_true_SC(mean_obs_SC_open, mean_pred_SC_open, dose_axis_open, "OPEN")
-        plt.subplot(122)
-        pred_vs_true_SC(mean_obs_SC_grid, mean_pred_SC_grid, dose_axis_grid, "GRID")
-        # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Thesis\\plots\\survival 301121\\Poisson regression\\ObsVSPred_open_grid_39mm_survival.png", dpi = 1200)
-        plt.show()
-
-
-        """
-        No train test split
-        """
-
-        SC = np.concatenate((np.ravel(pooled_SC_ctrl), SC_open, SC_grid))
-        X = np.vstack((X_ctrl,X_open,X_grid))
-
-
-        true_SC = mean_survival(X,SC)
-        print("True average survival")
-        model, predicted_SC, summary = poisson_regression(SC,X,4,
-                                  r"GRID&OPEN: Surviving colonies within {:.1f} X {:.1f} $mm^2$ square".format(kernel_size/47, kernel_size/47),
-                                  'C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GLM_results_39mm_GRID&OPEN_w.G_factor.tex',
-                                  True)
-        plt.close()
-
-        """
-        Finding MSE between predicted mean survival vs true mean survival for grid and open stacked
-        """
-
-        print(np.shape(true_SC), np.shape(predicted_SC))
-        MSE = 1/len(true_SC)*np.sum(np.subtract(true_SC,predicted_SC)**2)
-        print(MSE)
-
-        """
-        Finding MSE between predicted mean survival  vs true mean survival for grid
-        """
-
-
-        true_SC_grid = mean_survival(X_grid,SC_grid)
-        predicted_tmp = model.get_prediction(X_grid).summary_frame()["mean"]
-
-        predicted_SC_grid = mean_survival(X_grid, predicted_tmp)
-        MSE = 1/len(true_SC_grid)*np.sum(np.subtract(true_SC_grid,predicted_SC_grid)**2)
-
-        print(MSE)
-
-        """
-        Finding MSE between predicted mean survival vs true mean survival for open
-        """
-        true_SC_open = mean_survival(X_open,SC_open)
-        predicted_tmp = model.get_prediction(X_open).summary_frame()["mean"]
-
-        predicted_SC_open = mean_survival(X_open, predicted_tmp)
-        MSE = 1/len(true_SC_open)*np.sum(np.subtract(true_SC_open,predicted_SC_open)**2)
-
-        print(MSE)
-
-
-        pred_vs_true_SC(true_SC,predicted_SC,true_SC_grid,predicted_SC_grid,true_SC_open,predicted_SC_open)
-    method2 = False
-    if method2 == True:
-        """tot_analysis_area = (cropping_limits[1] - cropping_limits[0])*(cropping_limits[3] - cropping_limits[2])/47**2 #mm^2 47pixels per mm for 1200 dpi
-        peak_area = 393.32 #mm^2
-        valley_area_ratio = (tot_analysis_area-peak_area)/tot_analysis_area
-        peak_area_ratio = peak_area/tot_analysis_area"""
-
-        # print(tot_analysis_area)
-        # print(valley_area_ratio, peak_area_ratio)
-
-        """
-        Now we stack all data togheter and perform poisson regression.
-        We split the data into training and testing
-        """
-
-
-
-        SC_open, tot_dose_axis_open = data_stacking_2(False, SC_open_2Gy,
-                                                    SC_open_5Gy, dose2Gy_open,
-                                                    dose5Gy_open)
-        SC_grid, tot_dose_axis_grid = data_stacking_2(True, SC_grid_2Gy,
-                                                      SC_grid_5Gy, SC_grid_10Gy,
-                                                      dose2Gy_grid, dose5Gy_grid, dose10Gy_grid)
-        """
-        Adding the control survival and doses (0Gy) to open. Then make individual design matrix with different G factors
-        """
-        tmp = np.repeat(dose2Gy_grid*0,pooled_SC_ctrl.shape[0]*pooled_SC_ctrl.shape[1])
-        X_ctrl = design_matrix(len(np.ravel(pooled_SC_ctrl)), tmp, 5, 0, 0, kernel_size)
-        X_open = design_matrix(len(SC_open),tot_dose_axis_open,5, 1, 0, kernel_size)
-        X_grid = design_matrix(len(SC_grid),tot_dose_axis_grid, 5, peak_area_ratio, valley_area_ratio, kernel_size)
-
-        X_ctrl_train,X_ctrl_test,SC_ctrl_train,SC_ctrl_test = train_test_split(X_ctrl,np.ravel(pooled_SC_ctrl),test_size = 0.2)
-        X_open_train,X_open_test,SC_open_train,SC_open_test = train_test_split(X_open,SC_open,test_size = 0.2)
-        X_grid_train,X_grid_test, SC_grid_train,SC_grid_test = train_test_split(X_grid,SC_grid, test_size = 0.2)
-        SC_train = np.concatenate((SC_ctrl_train, SC_open_train, SC_grid_train))
-        X_train = np.vstack((X_ctrl_train,X_open_train,X_grid_train))
-
-        SC_test = np.concatenate((SC_ctrl_test, SC_open_test, SC_grid_test))
-        X_test = np.vstack((X_ctrl_test,X_open_test,X_grid_test))
-        mean_obs_SC_train = mean_survival(X_train,SC_train)
-        model, mean_pred_SC_train, summary = poisson_regression(SC_train,X_train,5,
-                                                       r"GRID&OPEN: Surviving colonies within {:.1f} X {:.1f} $mm^2$ square".format(kernel_size/47, kernel_size/47),
-                                                       'C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\231121\\GLM_results_39mm_GRID&OPEN_w.G_factor.tex',
-                                                       False)
-
-        plt.close()
     method3 = True
     """
     Final method
@@ -732,132 +510,10 @@ for i in range(len(kernel_size_mm)):
         #     plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\survival_poisson_OPEN&STRIPES&DOTS_{}mm_{}regressors.png".format(kernel_size_mm[i], num_regressors), dpi = 300)
 
         # plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\survival_poisson_OPEN_{}mm_{}regressors_peak_area.png".format(kernel_size_mm[i], num_regressors), dpi = 300)
-        plt.close()
+        plt.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\Foredrag\\quadrat_raw_data_2mm.png",dpi = 300)
+        plt.show()
 
-
-
-        error_eval2 = False
-        if error_eval2:
-            """
-            We test how well the model estimates the mean
-            SC_ctrl_test, SC_open_test, SC_grid_test, SC_grid_dots_test
-            X_ctrl_test,X_open_test,X_grid_test, X_grid_dots_test
-            """
-            method_labels = ["Ctrl", "OPEN", "GRID Stripes", "GRID Dots"]
-            test_data = {"Ctrl":{"SC":SC_ctrl_test,"X":X_ctrl_test}, "OPEN":{"SC":SC_open_test, "X":X_open_test},
-                       "GRID Stripes":{"SC":SC_grid_test,"X":X_grid_test}, "GRID Dots":{"SC":SC_grid_dots_test, "X":X_grid_dots_test}}
-            train_data = {"Ctrl":{"SC":SC_ctrl_train,"X":X_ctrl_train}, "OPEN":{"SC":SC_open_train, "X":X_open_train},
-                       "GRID Stripes":{"SC":SC_grid_train,"X":X_grid_train}, "GRID Dots":{"SC":SC_grid_dots_train, "X":X_grid_dots_train}}
-            error = []
-            MSE = np.zeros(len(method_labels))
-            MSE_train = np.zeros(len(method_labels))
-            fig,ax = plt.subplots(ncols = 2, figsize = (12,6))
-            if peak_dist_reg and num_regressors == 3:
-                plt.suptitle(r"kernel size {} x {} $mm^2$ {} regressors peak distance".format(kernel_size_mm[i], kernel_size_mm[i],num_regressors))
-            elif not peak_dist_reg and num_regressors == 3:
-                plt.suptitle(r"kernel size {} x {} $mm^2$ {} regressors peak area".format(kernel_size_mm[i], kernel_size_mm[i], num_regressors))
-            else:
-                plt.suptitle(r"kernel size {} x {} $mm^2$ {} regressors".format(kernel_size_mm[i], kernel_size_mm[i], num_regressors))
-
-            for idx, method in enumerate(test_data):
-                print(method)
-                # print(model.get_prediction(test_data[method]["X"]).summary_frame())
-                # print(model.get_prediction(train_data[method]["X"]).summary_frame())
-
-                predicted = model.get_prediction(test_data[method]["X"]).summary_frame()["mean"]
-
-                predicted_train = model.get_prediction(train_data[method]["X"]).summary_frame()["mean"]
-                print("standard deviation test vs train")
-                print(np.std(predicted), np.std(predicted_train))
-
-
-                print(predicted.shape)
-                print(predicted_train.shape)
-                true = test_data[method]["SC"]
-                true_train = train_data[method]["SC"]
-                """    plt.subplot(121)
-                plt.plot(true,"*",label = "test")
-                plt.plot(true_train,"o", label = "train", markersize = 3)
-                plt.subplot(122)
-                plt.plot(predicted,"*",label = "test")
-                plt.plot(predicted_train,"o", label = "train", markersize = 3)
-
-                plt.show()"""
-                print(np.std(true), np.std(true_train))
-                err = (predicted-true)**2
-                error.append(err)
-                err_train = (predicted_train-true_train)**2
-                MSE[idx] = np.mean(err)
-                MSE_train[idx] = np.mean(err_train)
-                #MSE[idx] = np.std(err)/np.sqrt(len(err)) #standard error
-                #ax[0].set_ylabel(r"$ (pred_i - true_i)^2 $", fontsize = 15)
-                #ax[0].plot(test_data[method]["X"][:,1], err, "o", markersize = 5, color = colors[idx],label = method_labels[idx]) #plotting dose vs quadrat of error
-                #ax[0].legend()
-            #ax[0].set_title("Squared error vs dose", fontsize = 15)
-            ax[0].set_title("MSE test data", fontsize = 15)
-            # ax[0].set_xlabel("Dose [Gy]", fontsize = 15)
-            ax[0].set_ylabel(r"$\frac{1}{n} \cdot \sum_{i = 0}^{n} (pred_i - true_i)^2 $", fontsize = 12)
-            ax[0].bar(np.arange(1,len(method_labels)+1), MSE , color = colors[:4], alpha = 0.8)
-            ax[0].set_xticks(np.arange(1,len(method_labels)+1), method_labels,fontsize = 9)
-
-            """ax[2].set_title("MSE train data", fontsize = 15)
-            ax[2].set_ylabel(r"$\frac{1}{n} \cdot \sum_{i = 0}^{n} (pred_i - true_i)^2 $", fontsize = 12, rotation = 60)
-            ax[2].bar(np.arange(1,len(method_labels)+1), MSE_train , color = colors[:4], alpha = 0.8)
-            ax[2].set_xticks(np.arange(1,len(method_labels)+1), method_labels,fontsize = 12)"""
-
-            ax[1].set_title("MSE train vs test")
-            ax[1].plot(np.arange(1,len(method_labels)+1),MSE_train,"o", label = "train")
-            ax[1].set_xticks(np.arange(1,len(method_labels)+1), method_labels,fontsize = 10)
-            ax[1].plot(np.arange(1,len(method_labels)+1),MSE,"*",label = "test")
-            ax[1].legend()
-            #ax[1].bar(method_labels, MSE , color = colors[:4], alpha = 0.8)
-            fig.tight_layout()
-            plt.subplots_adjust(wspace = .2)
-            # if peak_dist_reg and num_regressors == 3:
-            #     fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\survival_poisson_OPEN&GRID&STRIPES&DOTS_{}mm_{}regressors_peak_dist_MSE_trainVStest{}.png".format(kernel_size_mm[i], num_regressors, date.today()), dpi = 300)
-            # elif not peak_dist_reg and num_regressors == 3:
-            #     fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\survival_poisson_OPEN&GRID&STRIPES&DOTS_{}mm_{}regressors_peak_area_MSE_trainVStest{}.png".format(kernel_size_mm[i], num_regressors, date.today()), dpi = 300)
-            # else:
-            #     fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\survival_poisson_OPEN&GRID&STRIPES&DOTS_{}mm_{}regressors_MSE_trainVStest{}.png".format(kernel_size_mm[i], num_regressors, date.today()), dpi = 300)
-
-            #fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\survival_poisson_OPEN&GRID&STRIPES&DOTS_{}mm_{}regressors_MSE_trainVStest{}.png".format(kernel_size_mm[i], num_regressors, date.today()), dpi = 300)
-            print(np.shape(error))
-
-            """Ctrl, OPEN, striped, dotted"""
-            print("Samplesize of OPEN,striped and dotted")
-            print(np.shape(error[1]),np.shape(error[2]),np.shape(error[3]))
-            print("Testing MSE of all groups")
-            print(f_oneway(error[0],error[1],error[2],error[3]))
-            print("Testing MSE of OPEN and striped GRID")
-            print(f_oneway(error[1],error[2]))
-            print("Testing MSE of OPEN and dotted GRID")
-            print(f_oneway(error[1],error[3]))
-            print("Testing MSE of striped and dotted GRID")
-            print(f_oneway(error[2],error[3]))
-
-            plt.show()
-
-            print("MSE test vs train")
-            print(MSE.shape)
-            print(MSE)
-            print(MSE_train)
-
-
-            error_df[kernel_size_mm[i]] = MSE
-            print(error_df[kernel_size_mm[i]])
-
-
-            MSE_df = pd.DataFrame(error_df, index = [method_labels])
-            print(MSE_df)
-
-
-            """if peak_dist_reg and num_regressors == 3:
-                MSE_df.to_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\MSE_values_{}regressors_peak_dist.csv".format(num_regressors))
-            elif not peak_dist_reg and num_regressors == 3:
-                MSE_df.to_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\MSE_values_{}regressors_peak_area.csv".format(num_regressors))
-            else:
-                MSE_df.to_csv("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\MSE_values_{}regressors.csv".format(num_regressors))"""
-
+        """final error evaluation"""
         error_eval3 = True
         if error_eval3:
             """
@@ -1009,11 +665,7 @@ for i in range(len(kernel_size_mm)):
                     ax[idx-1].errorbar(dose_axis, obs_axis,xerr = std_axis,yerr = std_obs_axis, fmt = "o", label = "Observed SC {}".format(method), color = colors[idx-1], markersize = 5)
                     ax[idx-1].plot(dose_axis, pred_axis,"--", label = "Predicted SC {}".format(method), color = colors[idx-1])
                     ax[idx-1].legend()
-                # ax.errorbar(dose_axis_train, mean_obs_SC_train,yerr = std_obs_SC_train,fmt = "o", label = "Observed. SC {}".format(method), color = colors[idx], markersize = 5)
-                # ax.errorbar(dose_axis_train, mean_pred_SC_train,yerr = std_pred_SC_train,fmt =  "-", label = "Predicted. SC {}".format(method),color = colors[idx], markersize = 5)
-                #ax.set_xticks(dose_categories_obs_train)
-                # plt.plot(dose_axis_train, np.abs(obs_SC - pred_SC),label  = "Abs. err.")
-                #pred_vs_true_SC(mean_obs_SC_train, mean_pred_SC_train, dose_axis_train, "Mean SC observed vs predicted {} {} explanatory variables {} mm kernel".format(method,num_regressors, kernel_size_mm[i]))
+
 
             plt.tight_layout()
             # fig.savefig("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Survival Analysis Data\\2D analysis\\Poisson\\ObsVSPred_{}mm_survival_{}regressors_new.png".format(kernel_size_mm[i], num_regressors), dpi = 300)

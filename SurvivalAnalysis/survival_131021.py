@@ -1,39 +1,15 @@
-from survival_analysis4 import survival_analysis
+from survival_analysis_4 import survival_analysis
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.stats import f, ttest_ind
-from kernel_density_estimation import kde
 import seaborn as sb
-from scipy import stats, optimize
-import seaborn as sb
-from poisson import poisson
-from scipy.interpolate import interp1d
-from utils import K_means, logLQ, fit, poisson_regression, data_stacking,design_matrix, data_stacking_2, mean_survival
+from utils import poisson_regression, data_stacking_2
 import sys
-from plotting_functions_survival import pooled_colony_hist, survival_curve_grid, survival_curve_open, pred_vs_true_SC
 import cv2
-from playsound import playsound
 import pickle
 from sklearn.model_selection import train_test_split
 
-sound_path = "C:\\Users\\jacob\\OneDrive\\Documents\\livet\\veldig viktig\\"
-sounds = ["Ah Shit Here We Go Again - GTA Sound Effect (HD).mp3",
-         "Anakin Skywalker - Are You An Angel.mp3","Get-in-there-Lewis-F1-Mercedes-AMG-Sound-Effect.wav",
-          "he-need-some-milk-sound-effect.wav",
-         "MOM GET THE CAMERA Sound Effect.mp3","My-Name-is-Jeff-Sound-Effect-_HD_.wav",
-         "Nice (HD) Sound effects.mp3","Number-15_-Burger-king-foot-lettuce-Sound-Effect.wav",
-         "oh_my_god_he_on_x_games_mode_sound_effect_hd_4036319132337496168.mp3",
-         "Ok-Sound-Effect.wav","PIZZA TIME! Sound Effect (Peter Parker).mp3","WHY-ARE-YOU-GAY-SOUND-EFFECT.wav", "OKLetsGo.mp3",
-         "Adam vine.wav","Fresh Avocado Vine.wav", "I Can't Believe You've Done This.wav",
-         "I Don't Have Friends, I Got Family.wav","Just Do It - Sound Effect [Perfect Cut].wav","Wait A Minute, Who Are You Meme.wav",
-         "WTF Richard.wav", "you almost made me drop my croissant vine.wav","Martin, Thea og Nikolai, hele klippet.wav",
-         "TikTok - My friend here, Justin, is cracked at Fortnite.wav","Wenches Kantine - Tacobaguette_duger.wav","Wenches Kantine - Tacobaguette_fredag.wav"]
-weights = np.zeros(len(sounds))
-weights[-1] = 1
 
-
-#playsound(sound_path + np.random.choice(sounds,p = weights))
 
 folder = "C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\Segmentation Results - 23.11.2021"
 time = ["20112019"]
