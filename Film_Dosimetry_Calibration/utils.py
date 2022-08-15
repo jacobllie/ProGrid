@@ -14,28 +14,6 @@ from scipy.stats import t,chi2
 from datetime import date
 
 
-def K_means(dose, n_clusters,x,y):
-    kmeans = KMeans(n_clusters = n_clusters)
-    df = pd.DataFrame({"dose{}Gy".format(dose):np.ravel(x),"SF_{}Gy".format(dose):np.ravel(y)})
-    fit = kmeans.fit(df)
-    df["Clusters"] = fit.labels_
-    if dose == 2:
-        idx_1 = np.argwhere(np.logical_and(0.33 < x, x < 0.41))
-        idx_2 = np.argwhere(np.logical_and(0.52 < x, x < 0.70))
-        idx_3 = np.argwhere(np.logical_and(0.8 < x, x < 1.20))
-        idx_4 = np.argwhere(np.logical_and(1.5 < x, x < 1.8))
-
-
-        cluster_center1 = [np.mean(x[idx_1[:,0]]),np.mean(y[idx_1[:,0]])]
-        cluster_center2 = [np.mean(x[idx_2[:,0]]),np.mean(y[idx_2[:,0]])]
-        cluster_center3 = [np.mean(x[idx_3[:,0]]),np.mean(y[idx_3[:,0]])]
-        cluster_center4 = [np.mean(x[idx_4[:,0]]),np.mean(y[idx_4[:,0]])]
-        print(cluster_center1, cluster_center2)
-        return df, cluster_center1, cluster_center2, cluster_center3, cluster_center4
-
-    else:
-        return df, fit.cluster_centers_[:,0],fit.cluster_centers_[:,1]
-
 def mean_dose(lower_lim, upper_lim, doses):
     """
     Assumes doses with shape (m,n)
@@ -50,42 +28,6 @@ def mean_dose(lower_lim, upper_lim, doses):
     mean /= doses.shape[0]
     std /= doses.shape[0]
     return mean, std
-
-def chi_squared(predicted, observed, num_datapoints, num_regressors):
-    X = np.sum(((observed-predicted)/np.sqrt(predicted))**2)
-    df = num_datapoints - num_regressors
-    p_value = 1 - stats.chi2.cdf(X, df)
-    return X, p_value
-
-def deviance(predicted, observed):
-    2*np.sum(observed * np.log(observed/predicted) - (observed - predicted))
-    pass
-
-def logLQ(d,alpha, beta):
-    return -(alpha*d + beta*d**2)
-
-def fit(model, x, y):
-    popt, pcov = curve_fit(model, x, y)
-    return popt
-
-def design_matrix(regressors):#(len_respond_variables, x1, num_regressors, x2 = None, x3 = None, x4 = None):
-
-    """if num_regressors == 1:
-        X = np.zeros((len_respond_variables, num_regressors + 1))
-        X[:,0] = 1
-        X[:,1] = x1
-    else:
-        X = np.zeros((len_respond_variables, num_regressors + 1))
-        X[:,0] = 1
-        X[:,1] = x1
-        X[:,2] = x1**2
-        if num_regressors == 3:
-            X[:,3] = x2
-        if num_regressors == 4:
-            X[:,3] = x2
-            X[:,4] = x3
-        if num_regressors == 5:
-            X[:,5] = x4"""
 
 
 def mean_survival(X, SC, rounding, method):
@@ -231,9 +173,9 @@ def poisson_regression(respond_variables, X , num_regressors, plot_title, save_p
 
     """2D plotting"""
     fig,ax = plt.subplots(figsize = (10,8))
-    ax.set_title(plot_title)
-    ax.set_xlabel("Dose [Gy]")
-    ax.set_ylabel("SC")
+    #ax.set_title(plot_title)
+    ax.set_xlabel("Dose [Gy]", fontsize = 12)
+    ax.set_ylabel("SC", fontsize = 12)
 
 
     # ax.plot(X[SC_lengths[3]:SC_lengths[4] - 1,3], respond_variables[SC_lengths[3]:SC_lengths[4] - 1], 'o', label='Observed', color = colors[0], markersize = 3)
@@ -286,69 +228,7 @@ def data_stacking_2(grid, *args):
     tot_dose_axis = np.ravel(np.repeat(doses, survival_2.shape[0]*survival_2.shape[1], axis = 0))
     return SC, tot_dose_axis
 
-def data_stacking(dose0, dose2, dose5, survival_ctrl, survival_2,survival_5, dose10 = None, survival_10 = None):
-    if survival_10 is not None and dose10 is not None:
-        SC = np.concatenate((np.ravel(survival_ctrl),np.ravel(survival_2),
-                             np.ravel(survival_5), np.ravel(survival_10)))
-        doses = np.array([dose0,dose2,dose5,dose10])
-    if survival_10 is None and dose10 is None:
-        SC = np.concatenate((np.ravel(survival_ctrl),np.ravel(survival_2),
-                                 np.ravel(survival_5)))
-        doses = np.array([dose0,dose2,dose5])
-
-    """
-    numpy repeat example:
-    x = np.array([[1,2],[3,4]])
-    if you repeat x once
-    y = np.repeat(x,2), you'll get [[1,2],
-                                    [1,2],
-                                    [3,4],
-                                    [3,4],
-    Thats why we make the initial the doses array, repeat it and the unravel so it becomes
-    [1,2,1,2,3,4,3,4]
-    """
-    tot_dose_axis = np.ravel(np.repeat(doses, survival_ctrl.shape[0]*survival_ctrl.shape[1], axis = 0))
-    return SC,tot_dose_axis
-
-def logLQ(params, d):
-    return (params[0]*d + params[1]*d**2)
-def LQres(params,d,y):
-    return (params[0]*d + params[1]*d**2) - y
-
-def D(params,netOD):
-    return params[0]*netOD + params[1]*netOD**params[2]
-
-def confidence_band(fit_obj, dfdp, n, x_interp,func):
-    k = len(dfdp)
-    df = n- k - 1 #degrees of freedom
-    hessian_approx_inv = np.linalg.inv(fit.jac.T.dot(fit.jac)) #follows H^-1 approx J^TJ
-    std_err_res = np.sqrt(np.sum(fit.fun**2)/df)**2
-    param_cov_low = std_err_res * hessian_approx_inv
-    cov_D = dfdp.T.dot(param_cov).dot(dfdp)
-    y_interp = func(fit.x,x_interp)
-
-def dose_profile1(pixel_height, dose_array):
-    mean_dose = np.zeros((len(dose_array),pixel_height))
-    std_dose = np.zeros((len(dose_array),pixel_height))
-    #confidence = np.zeros((len(dose_array), pixel_height))
-    for i in range(len(dose_array)):
-        mean_dose[i] = [np.mean(dose) for dose in dose_array[i]]
-        std_dose[i] = [np.std(dose) for dose in dose_array[i]]
-        #confidence[i] = std_dose[i]/np.sqrt(len(dose_array[i]))*t.ppf(0.95,len(dose_array[i]))
-        #print(dose_array.shape)
-
     return mean_dose, std_dose
-def dose_profile2(pixel_height,dose_matrix):
-    """
-    Loops over the entire heigth of the image,
-    finding mean dose in each pixel row
-    """
-    dose_array = np.zeros(len(pixel_height))
-    print(len(dose_array))
-    for i in range(len(pixel_height)):
-        dose_array[i] = np.mean(dose_matrix[i])
-
-    return dose_array
 
 def dose_fit_error(OD, dOD,dparam,param):
     da,db,dn = np.sqrt(dparam)
@@ -362,15 +242,3 @@ def corrfunc(x, y, **kws):
     ax = plt.gca()
     ax.annotate("r = {:.2f}".format(r),
                 xy=(.1, .9), xycoords=ax.transAxes)
-
-if __name__ == "__main__":
-    import skimage.transform as tf
-    grid_image = cv2.imread("C:\\Users\\jacob\\OneDrive\\Documents\\Skole\\Master\\data\\310821\\Measurements\\Grid_Stripes\\EBT3_Stripes_310821_Xray220kV_5Gy1_001.tif",-1)
-    grid_image = grid_image[10:722,10:497]
-    grid_image = 0.299*grid_image[:,:,0] + 0.587*grid_image[:,:,1] + 0.114*grid_image[:,:,2]
-    grid_image = tf.rescale(grid_image,4)
-    grid_image = grid_image[200:2250,300:1750]
-
-
-    plt.imshow(grid_image)
-    plt.show()
